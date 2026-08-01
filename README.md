@@ -1,244 +1,248 @@
-# Equipment Maintenance Management System (EMMS) Learning Handbook
+> [!NOTE]
+> **Project Status:** 🟡 Planning & Architecture Phase
+>
+> The business requirements, architecture, database design, and learning handbook are complete. The implementation phase begins next.
 
-Welcome to the Learning Handbook for the Equipment Maintenance Management System (EMMS).
+# Equipment Maintenance Management System (EMMS)
 
-This handbook is a step-by-step guide that teaches a junior software developer everything they need to understand this project — from the business problem it solves, all the way through to deploying it for real users.
+The Equipment Maintenance Management System (EMMS) is a modern web application designed to help manufacturing organizations manage equipment, maintenance activities, and operational reliability through a centralized digital platform.
 
-If you have just opened this repository and are wondering where to start, this page is your answer. It explains what the handbook is, why it exists, who it is for, and the order in which you should study the chapters.
+Many factories still run on paper logs, shared spreadsheets, and messages scattered across apps. When machines fail, the story of what happened — and why — often lives in a notebook or a whiteboard that gets wiped clean at the end of a shift. EMMS replaces that fragmentation with a single place where equipment, maintenance work, downtime, and history are recorded, organized, and understood.
+
+This repository is the home of that project. It documents not only what EMMS aims to build, but also the reasoning behind every design decision — making it a genuine learning project as much as a software product.
 
 > [!NOTE]
-> You may notice that earlier chapters sometimes call the application the "Downtime Command Center." That is the same system — the EMMS — described from different angles. As the project grew, the name settled on the Equipment Maintenance Management System.
-
-> [!TIP]
-> You do not need to read everything at once. Follow the roadmap, take your time, and use each chapter's Key Takeaways to check your understanding before moving on.
+> EMMS is currently in the **planning and design phase**. The application itself has not been implemented yet. This README explains the problem the project solves and the system we are preparing to build.
 
 ---
 
-## Purpose of the Handbook
+## The Problem
 
-This handbook is designed to teach two things at the same time:
+Manufacturing organizations depend on equipment running reliably. Every minute a machine is stopped is production lost — but for many companies, the information needed to prevent and understand those stops is scattered and unreliable.
 
-1. **The business domain of manufacturing maintenance** — how factories work, why downtime is expensive, and what operators, engineers, and managers actually need.
-2. **The software engineering concepts required to build the system** — database design, request flows, system architecture, caching, analytics, and deployment.
+Common realities in today's factories:
 
-These two halves are taught together because they belong together. Every technical decision in this project exists because of a real manufacturing need.
+- **Paper maintenance records** — handwritten logs that get lost, damaged, or become unreadable
+- **Excel spreadsheets** — multiple versions drifting apart, with no single version anyone trusts
+- **Whiteboards** — useful in the moment, but wiped clean with no history left behind
+- **WhatsApp communication** — important details buried in group chats and impossible to search
+- **Lost maintenance history** — no record of what was done, when, or why
+- **Poor visibility into equipment health** — managers cannot see which machines are reliable and which are not
+- **Delayed maintenance** — work happens late because nothing reminds anyone it is due
+- **Reactive instead of preventive maintenance** — teams fix failures after they happen instead of preventing them
 
-The handbook progresses in a natural order:
+These problems are expensive. When maintenance is unplanned, the costs add up quickly:
 
-- First, you understand **the problem**.
-- Then, you **design** the solution.
-- Next, you learn how to **build** and **deploy** the application.
-- Finally, you prepare to **maintain** and **improve** it over time.
-
-By the end, you will understand both the factory floor and the software that serves it.
-
-> [!NOTE]
-> The handbook teaches concepts in plain language before they are used in code. It is a learning resource, not just a reference manual.
-
----
-
-## Learning Philosophy
-
-Every chapter in this handbook focuses on answering **why** before **how**.
-
-Before we show you how the database is structured, we explain why it is structured that way. Before we show you how a request travels through the system, we explain why the server must be the gatekeeper. Before we show you how the dashboard is built, we explain why analytics exist at all.
-
-This order matters because understanding the reasoning behind architectural and design decisions makes implementation much easier. When you know *why* something works the way it does:
-
-- the code starts to make sense instead of looking like magic
-- you can make sensible choices when things do not go exactly as planned
-- you can explain your work clearly to other developers and interviewers
-
-Here is a short motivational note: the chapters are written to be read **in order**. Each one builds on the ones before it. Later chapters assume you remember the concepts from earlier ones. If you skip around, you will often meet a term that has not been explained yet.
-
-Take your time, go one chapter at a time, and trust the process. Every session brings you closer to understanding the whole system.
+- unexpected downtime halts production lines
+- emergency repairs cost far more than planned work
+- recurring failures go unnoticed because there is no history to spot the pattern
+- managers make decisions without reliable data
 
 > [!IMPORTANT]
-> Read the chapters in order. Later chapters assume knowledge from earlier ones. The "why" of one chapter becomes the foundation of the next.
+> The core problem EMMS addresses is not machine failure itself — it is the **fragmentation of information** about those failures. When data is scattered, the people who need it cannot learn from it.
 
 ---
 
-## Learning Roadmap
+## The Solution
 
-Here is the full journey of the handbook, from the first chapter to the day the application is ready for production.
+EMMS provides one centralized system where an organization can manage the full lifecycle of its equipment and maintenance work.
 
-```mermaid
-flowchart TD
-    A[Business Problem] --> B[Manufacturing Fundamentals]
-    B --> C[Database Design]
-    C --> D[Request Flow]
-    D --> E[System Architecture]
-    E --> F[Folder Structure]
-    F --> G[Analytics Engine]
-    G --> H[Deployment & Production]
-    H --> I[Implementation Phase]
-    I --> J[Testing]
-    J --> K[Production Readiness]
-```
+With EMMS, a company can:
 
-Each step in this roadmap answers a question:
+- **register equipment** — keep a reliable inventory of every machine and asset
+- **manage maintenance activities** — plan preventive work and track tasks to completion
+- **monitor equipment health** — see the current status of machines at a glance
+- **track downtime** — record when machines stop and capture what happened
+- **organize maintenance history** — build a lasting record of every repair and inspection
+- **improve planning** — schedule maintenance before failures happen, not after
+- **support better operational decisions** — give managers clear data instead of guesswork
 
-- **Business Problem** — Why does this software exist?
-- **Manufacturing Fundamentals** — What is the world this software models?
-- **Database Design** — How is the data organized?
-- **Request Flow** — How does a single action travel through the system?
-- **System Architecture** — How do all the pieces fit together?
-- **Folder Structure** — Where does everything live in the codebase?
-- **Analytics Engine** — How does raw data become useful insight?
-- **Deployment & Production** — How does the application reach real users?
-- **Implementation Phase** — How is the system actually built?
-- **Testing** — How do we make sure it works correctly?
-- **Production Readiness** — How do we prepare it for real use?
-
-The first eight steps are complete. The final three are the work ahead.
-
----
-
-## Table of Contents
-
-The handbook is organized into numbered sessions. This table shows every session, its file, its topic, and its purpose.
-
-### Completed Chapters
-
-| Session | File | Topic | Purpose |
-|---|---|---|---|
-| 1 | `01-business-problem.md` | Business Problem | Explains why the EMMS exists and the real-world problems it solves |
-| 2 | `02-manufacturing-fundamentals.md` | Manufacturing Fundamentals | Introduces production lines, downtime, MTTR, MTBF, reason codes, and maintenance |
-| 3 | `03-database-design.md` | Database Design | Explains how the data is organized into tables and relationships |
-| 4 | `04-request-flow.md` | Request Flow | Follows one user action from the browser through the backend and back |
-| 5 | `05-system-architecture.md` | System Architecture | Shows how all the technologies in the project work together |
-| 6 | `06-folder-structure.md` | Folder Structure | Teaches how to navigate the project's codebase |
-| 7 | `07-analytics-engine.md` | Analytics Engine | Explains how downtime records become dashboard metrics and decisions |
-| 8 | `08-deployment-and-production.md` | Deployment and Production | Covers moving the application from a laptop to real users |
-
-### Planned Chapters
-
-| Session | File | Topic | Purpose |
-|---|---|---|---|
-| 9 | Planned | Building the EMMS | Project setup and scaffolding |
-| 10 | Planned | Database Implementation | Creating the real database schema and seed data |
-| 11 | Planned | Authentication and Role-Based Access | Adding sign-in and user permissions |
-| 12 | Planned | Building Core Features | Implementing downtime events, machines, and the dashboard |
-| 13 | Planned | Testing and Debugging | Verifying the application works correctly |
-| 14 | Planned | Production Readiness and Future Improvements | Preparing for real users and planning what comes next |
-
-> [!NOTE]
-> Sessions 1 through 8 are complete and ready to study. Sessions 9 through 14 are planned and will be added as the project is built.
-
----
-
-## Recommended Reading Order
-
-You should complete the chapters **sequentially**, starting at Session 1 and moving forward in order.
-
-Here is why the order matters:
-
-- Each chapter introduces concepts that the next chapter uses.
-- Session 1 explains the business problem that Session 2 builds its manufacturing concepts on.
-- Session 3 designs the database that Session 4's request flow talks to.
-- Sessions 4 and 5 describe the architecture that Session 6 teaches you to navigate.
-- Session 7 turns the data you designed into the analytics the dashboard shows.
-- Session 8 moves all of that into the real world of production.
-
-Later chapters assume you have learned the material from earlier ones. For example, Session 8 talks about environment variables and caching without re-teaching what a database or a cache is — because you already learned those in Sessions 3, 4, and 7.
-
-Studying in order also helps your confidence. Each chapter ends with Key Takeaways that summarize what you should remember. When you can explain those takeaways in your own words, you are ready for the next session.
+The focus is on **outcomes**, not implementation. The value of EMMS is that a supervisor can open a dashboard and see what needs attention, a technician can record work in minutes, and a manager can look at trends over time — all from the same source of truth.
 
 > [!TIP]
-> After each chapter, try to summarize what you learned out loud, or in a short note. If you can explain it simply, you have truly understood it.
+> EMMS turns scattered records into **organizational knowledge**. Individual events become patterns, and patterns become better decisions.
 
 ---
 
-## Skills You Will Learn
+## Who Is This Project For?
 
-This handbook teaches a wide range of skills that are useful for real software projects. Here is where each skill is learned:
+EMMS is designed for the people who keep a factory running. Each role interacts with the system differently:
 
-| Skill | Where It Is Learned |
-|---|---|
-| Understanding manufacturing systems | Sessions 1 and 2 |
-| Database design | Session 3 |
-| System architecture | Session 5 |
-| Request lifecycle | Session 4 |
-| Analytics | Session 7 |
-| Caching | Sessions 4, 7, and 8 |
-| Deployment | Session 8 |
-| Authentication | Session 5 (introduction) and Session 11 (planned) |
-| Testing | Session 13 (planned) |
-| Project planning | Sessions 9 and 14 (planned) |
-| Production thinking | Session 8 and Session 14 (planned) |
+| Role | Responsibilities | How EMMS Helps |
+|---|---|---|
+| **Maintenance Technician** | Performs maintenance work and records what was done | A quick way to see assigned tasks, record completion, and reference past repairs |
+| **Maintenance Supervisor** | Plans maintenance and manages the maintenance team | Tools to schedule work, see what is overdue, and keep the team on track |
+| **Plant Manager** | Oversees plant performance and reliability | A dashboard view of equipment health, downtime, and where attention is needed |
+| **Reliability Engineer** | Analyzes failures and drives long-term improvement | Historical data and analytics that reveal patterns behind repeated failures |
+| **Operations Manager** | Manages production and minimizes disruption | Visibility into downtime and its impact on output and planning |
 
-Some skills are introduced early and built upon later. For example, authentication first appears in the architecture chapter (Session 5) and is implemented in detail in the planned Session 11.
-
----
-
-## How This Handbook Connects to the Project
-
-This handbook is not a separate exercise. It mirrors the lifecycle of the EMMS project itself. Each chapter supports a later implementation task.
-
-```mermaid
-flowchart TD
-    A[Learning] --> B[Design]
-    B --> C[Architecture]
-    C --> D[Implementation]
-    D --> E[Deployment]
-    E --> F[Maintenance]
-```
-
-Here is how each stage maps to the handbook:
-
-- **Learning** — Sessions 1 and 2 build your understanding of the problem and the domain.
-- **Design** — Session 3 designs the database that will be implemented later.
-- **Architecture** — Sessions 4, 5, and 6 describe and organize the system's structure.
-- **Implementation** — Sessions 9 through 12 (planned) build the actual application.
-- **Deployment** — Session 8 explains how the finished application reaches users.
-- **Maintenance** — Session 14 (planned) covers production readiness and future improvements.
-
-In other words, every chapter you study maps to a real task in the project. The handbook is the plan, and the codebase is the result of following that plan.
-
-> [!IMPORTANT]
-> The handbook and the project are two halves of the same whole. The handbook explains the thinking; the project shows the result. Understanding one makes the other far easier.
+The same system serves different needs: the technician needs speed and clarity, while the manager needs summary and insight.
 
 ---
 
 ## Project Goals
 
-The EMMS project is designed to achieve several goals. These are the reasons the project exists and the outcomes you should expect by the end:
+EMMS is built around a set of clear objectives:
 
-- **Learn full-stack software engineering** — experience both the frontend and the backend of a real application.
-- **Understand manufacturing workflows** — see how software models a real business process.
-- **Build a production-style application** — not a toy, but an application designed to be deployed and used.
-- **Practice clean architecture** — keep the system organized so it is easy to understand and grow.
-- **Develop portfolio-quality documentation** — produce material that is clear enough to share and demonstrate.
-- **Gain confidence explaining technical decisions** — be able to explain *why* the system is built the way it is.
+- **Improve maintenance organization** — replace scattered tools with one reliable system
+- **Reduce equipment downtime** — catch problems earlier through better planning and history
+- **Increase equipment reliability** — understand what breaks, why, and how to prevent it
+- **Improve data visibility** — give every level of the organization a clear picture
+- **Replace manual processes** — remove paper, spreadsheets, and message-based tracking
+- **Support data-driven decision making** — base decisions on evidence, not instinct
+- **Demonstrate modern software engineering practices** — a project built with clean architecture and professional documentation
 
-Each goal connects to the skills in the handbook. When you finish, you will have a working project, a complete learning record, and the ability to talk about both with confidence.
+Each goal shapes both the product and how the project itself is developed.
 
 ---
 
-## Contributing to the Handbook
+## Core Features (Planned)
 
-If you add new chapters — for example, the planned Sessions 9 through 14 — follow these guidelines so the handbook stays consistent and beginner-friendly:
+The following features are planned for EMMS:
 
-- **Remain beginner-friendly** — assume the reader is new to the topic and explain terms before using them.
-- **Explain concepts before implementation** — focus on *why* before *how*, following the handbook's learning philosophy.
-- **Use practical examples** — anchor every idea in a realistic situation from the EMMS or the factory floor.
-- **Include Mermaid diagrams where useful** — a clear diagram often communicates more than a paragraph.
-- **Maintain a consistent writing style** — use the same headings, callouts, tables, and Key Takeaways structure as Sessions 1 through 8.
+| Feature | What It Does |
+|---|---|
+| **Equipment Registry** | A central inventory of all machines and assets |
+| **Maintenance Scheduling** | Planning preventive maintenance and tracking tasks |
+| **Downtime Tracking** | Recording when equipment stops and what caused it |
+| **Maintenance History** | A lasting record of every repair and inspection per asset |
+| **Dashboards** | At-a-glance summaries of equipment and maintenance status |
+| **Reports** | Filtered views of downtime, performance, and trends |
+| **Role-Based Access** | Different levels of access for different user roles |
+| **Notifications** | Alerts for upcoming or overdue maintenance |
+| **Analytics** | Insights such as repair times and top problem machines |
 
 > [!NOTE]
-> Consistency is what makes a handbook easy to study. When every chapter follows the same pattern, readers always know what to expect.
+> These features are **planned for the build phase** and will be implemented as the project moves from design into development. Nothing here is running yet.
 
 ---
 
-## Key Takeaways
+## Project Scope
 
-- The EMMS Learning Handbook is the beginner-friendly guide to the Equipment Maintenance Management System.
-- It teaches both the manufacturing domain and the software engineering needed to build the system.
-- The handbook progresses from understanding the problem, to designing, building, deploying, and maintaining the application.
-- Every chapter answers **why** before **how**, making implementation and explanation easier.
-- Sessions 1 through 8 are complete. Sessions 9 through 14 are planned.
-- Read the chapters in order — later chapters assume knowledge from earlier ones.
-- Each chapter supports a real task in the project, so the handbook and the codebase go hand in hand.
-- The project goals are learning, understanding, building, practicing clean architecture, producing quality documentation, and gaining confidence.
-- New chapters should stay beginner-friendly, explain concepts before implementation, and keep a consistent style.
-- When you are ready, continue with **Session 9 — Building the EMMS (Project Setup & Scaffolding)** to start the implementation phase.
+The MVP is intentionally focused. It covers the core workflows a small maintenance team needs, and deliberately leaves advanced capabilities for later.
+
+**Included in the MVP:**
+
+- Equipment management
+- Maintenance management
+- Downtime tracking
+- Dashboards
+
+**Not included in the first release:**
+
+- Predictive AI maintenance
+- IoT integrations
+- Mobile applications
+- ERP integrations
+
+Keeping the first release focused means the core system can be built well, validated, and understood before adding complexity.
+
+---
+
+## Learning Journey
+
+This repository documents more than the software — it captures the **engineering decisions** behind it.
+
+The project includes a dedicated **Learning Handbook** located at:
+
+```
+docs/learning/
+```
+
+The handbook teaches readers:
+
+- the **business concepts** of manufacturing maintenance
+- the **architecture** of the system
+- the **design decisions** behind the database and services
+- the **implementation journey** from planning to deployment
+
+Written for a junior developer, the handbook explains *why* the system is designed the way it is, one chapter at a time. It turns this repository into both a product and a learning resource.
+
+> [!TIP]
+> If you want to understand this project deeply, start with `docs/learning/README.md`. It maps out the entire learning roadmap.
+
+---
+
+## Current Project Status
+
+EMMS is in its planning and design phase. Implementation has not yet begun.
+
+| Status | Item |
+|---|---|
+| ✅ Complete | Product requirements |
+| ✅ Complete | Learning handbook |
+| ✅ Complete | Architecture design |
+| ✅ Complete | Database design |
+| ⏳ Next | Implementation planning |
+| ⏳ Pending | Application implementation |
+| ⏳ Pending | Testing |
+| ⏳ Pending | Deployment |
+
+> [!IMPORTANT]
+> This is a design-first project. The planning and documentation are complete; the build phase is the next major step.
+
+---
+
+## Roadmap
+
+The project follows a clear, high-level progression:
+
+```mermaid
+flowchart TD
+    A[Research] --> B[Planning]
+    B --> C[Architecture]
+    C --> D[Implementation]
+    D --> E[Testing]
+    E --> F[Deployment]
+    F --> G[Production Ready]
+```
+
+The project currently sits at the **Architecture** stage, with **Implementation** as the next milestone.
+
+---
+
+## Repository Structure
+
+The repository currently contains the following major areas:
+
+| Path | Purpose |
+|---|---|
+| `PRD.md` | The Product Requirements Document defining the MVP scope |
+| `docs/learning/` | The Learning Handbook — chapters covering the problem, design, architecture, and roadmap |
+
+As implementation begins, the repository will grow with the application code, database schema, and supporting files.
+
+---
+
+## Future Vision
+
+Beyond the MVP, EMMS could evolve in several directions:
+
+- **Advanced analytics** — deeper insight into reliability and performance
+- **Predictive maintenance** — using historical data to forecast failures
+- **IoT sensors** — live machine data feeding the system automatically
+- **Barcode / QR asset tracking** — scanning equipment to identify and update it
+- **Mobile technician application** — field-friendly access for technicians
+- **AI-assisted maintenance planning** — intelligent scheduling based on patterns
+
+These are **future possibilities**, not current functionality. The MVP focuses on the solid core: reliable equipment and maintenance management.
+
+---
+
+## Contributing
+
+The project is currently under **active development** and is still in its design phase.
+
+Once implementation begins, contributions, discussions, suggestions, and issue reports will be welcome. The goal is to build something well-thought-out — and the best way to do that is with thoughtful input from others.
+
+---
+
+## License
+
+A license has not yet been selected for this project. It will be decided and added here before the repository is opened for general contribution.
+
+---
+
+## Final Notes
+
+The goal of EMMS is not simply to build another CRUD application. It is to understand real manufacturing workflows and apply modern full-stack software engineering principles to solve meaningful business problems. Every design decision in this repository exists because it answers a real question — and the Learning Handbook exists so that anyone, including a future version of me, can understand those answers.
