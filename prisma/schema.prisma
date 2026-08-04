@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMINISTRATOR
+  SUPERVISOR
+  TECHNICIAN
+  OPERATOR
+  PLANT_MANAGER
+  RELIABILITY_ENGINEER
+}
+
+enum EquipmentStatus {
+  OPERATIONAL
+  UNDER_MAINTENANCE
+  OFFLINE
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String? // Auth identifier placeholder
+  role      Role     @default(OPERATOR)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedTasks    MaintenanceTask[]
+  completedRecords MaintenanceRecord[]
+}
+
+model Factory {
+  id        String   @id @default(cuid())
+  name      String
+  location  String
+  createdAt DateTime @default(now())
+
+  equipments Equipment[]
+}
+
+model Equipment {
+  id          String          @id @default(cuid())
+  name        String
+  assetNumber String          @unique
+  description String?
+  location    String
+  status      EquipmentStatus @default(OPERATIONAL)
+  criticality String?
+  factoryId   String
+  factory     Factory         @relation(fields: [factoryId], references: [id])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  maintenanceTasks   MaintenanceTask[]
+  maintenanceRecords MaintenanceRecord[]
+}
+
+model MaintenanceTask {
+  id             String            @id @default(cuid())
+  title          String
+  description    String?
+  status         MaintenanceStatus @default(SCHEDULED)
+  priority       Priority          @default(MEDIUM)
+  scheduledDate  DateTime
+  equipmentId    String
+  equipment      Equipment         @relation(fields: [equipmentId], references: [id])
+  assignedUserId String?
+  assignedUser   User?             @relation(fields: [assignedUserId], references: [id])
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model MaintenanceRecord {
+  id            String    @id @default(cuid())
+  equipmentId   String
+  equipment     Equipment @relation(fields: [equipmentId], references: [id])
+  technicianId  String
+  technician    User      @relation(fields: [technicianId], references: [id])
+  description   String
+  completedDate DateTime  @default(now())
+  notes         String?
+  createdAt     DateTime  @default(now())
+
+  partsUsed PartUsed[]
+}
+
+model PartUsed {
+  id                  String            @id @default(cuid())
+  name                String
+  quantity            Int
+  maintenanceRecordId String
+  maintenanceRecord   MaintenanceRecord @relation(fields: [maintenanceRecordId], references: [id])
+}
