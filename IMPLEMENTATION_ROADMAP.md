@@ -17,6 +17,30 @@ The Handbook is the "why." This roadmap is the "what's next." Both documents sho
 
 ---
 
+# Architecture Locked for MVP
+
+The technical architecture for the EMMS MVP is frozen. It consists of:
+
+- **Next.js App Router**
+- **TypeScript**
+- **Tailwind CSS**
+- **shadcn/ui**
+- **Prisma**
+- **PostgreSQL**
+- **Auth.js**
+- **React Hook Form**
+- **Zod**
+- **Server Actions**
+- **Route Handlers**
+- **Redis (optional caching)**
+
+> [!IMPORTANT]
+> This architecture is considered **frozen for the MVP unless a significant business requirement changes**. Do not introduce new technologies into the MVP without revisiting this decision.
+
+The full reasoning behind these choices is documented in `docs/ARCHITECTURE.md`, including the Architectural Principles, the ADR-001 API decision, and the architecture diagram. Consult that document when a question about the architecture arises.
+
+---
+
 ## Before Writing Code
 
 Before any implementation begins, complete this checklist. Each item protects you from building on a wrong foundation.
