@@ -1,23 +1,26 @@
-import { Role } from '@prisma/client'
-import { requireRole } from '@/server/rbac'
+import { PERMISSIONS, requirePermission } from '@/server/rbac';
+import { PageHeader } from '@/components/page-header';
+import { SectionPlaceholder } from '@/components/section-placeholder';
 
 export default async function AdminPage() {
-  await requireRole(Role.ADMINISTRATOR)
+  await requirePermission(PERMISSIONS.usersManage);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Administration</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          This area is restricted to Administrators.
-        </p>
-      </div>
-      <div className="rounded-xl border border-gray-200 bg-white p-6">
-        <p className="text-sm text-gray-700">
-          User management and system configuration are enforced server-side
-          here. These features will be implemented in future milestones.
-        </p>
-      </div>
+      <PageHeader
+        title="Administration"
+        description="User management and system configuration, restricted to Administrators."
+      />
+      <SectionPlaceholder
+        badge="Administration"
+        title="User management will live here"
+        description="This area is enforced server-side and restricted to Administrators. User management will be implemented in a later milestone."
+        planned={[
+          'Create and deactivate users',
+          'Assign roles from the Session 11 permission matrix',
+          'Review user activity',
+        ]}
+      />
     </div>
-  )
+  );
 }

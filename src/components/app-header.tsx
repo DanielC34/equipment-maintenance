@@ -1,46 +1,32 @@
-import Link from 'next/link'
-import type { Session } from 'next-auth'
-import { PERMISSIONS, roleHasPermission } from '@/lib/permissions'
-import { SignOutButton } from '@/components/sign-out-button'
+import Link from 'next/link';
+import type { Session } from 'next-auth';
+import { SignOutButton } from '@/components/sign-out-button';
+import { MobileNav } from '@/components/mobile-nav';
 
 export function AppHeader({ session }: { session: Session }) {
-  const { user } = session
-  const canManageUsers = roleHasPermission(user.role, PERMISSIONS.usersManage)
+  const { user } = session;
 
   return (
-    <header className="border-b border-gray-200 bg-white">
-      <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-6">
-          <Link
-            href="/dashboard"
-            className="text-sm font-bold tracking-tight text-indigo-600"
-          >
-            EMMS
-          </Link>
-          <nav className="flex items-center gap-4 text-sm">
-            <Link
-              href="/dashboard"
-              className="text-gray-700 hover:text-indigo-600"
-            >
-              Dashboard
-            </Link>
-            {canManageUsers && (
-              <Link href="/admin" className="text-gray-700 hover:text-indigo-600">
-                Admin
-              </Link>
-            )}
-          </nav>
+    <header className="sticky top-0 z-40 border-b border-gray-200 bg-white">
+      <div className="flex h-16 items-center gap-3 px-4 md:px-6">
+        <MobileNav session={session} />
+        <Link
+          href="/dashboard"
+          className="font-bold tracking-tight text-indigo-600 lg:hidden"
+        >
+          EMMS
+        </Link>
+        <div className="flex-1" />
+        <div className="min-w-0 text-right">
+          <p className="truncate text-sm font-medium text-gray-900">
+            {user.name}
+          </p>
+          <p className="truncate text-xs tracking-wide text-gray-500 uppercase">
+            {user.role.replace(/_/g, ' ')}
+          </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <p className="text-sm font-medium text-gray-900">{user.name}</p>
-            <p className="text-xs uppercase tracking-wide text-gray-500">
-              {user.role.replace(/_/g, ' ')}
-            </p>
-          </div>
-          <SignOutButton />
-        </div>
+        <SignOutButton />
       </div>
     </header>
-  )
+  );
 }
