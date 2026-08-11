@@ -289,3 +289,158 @@ The `prisma.config.ts` file reads this variable and passes it to Prisma Migrate.
 ### Next milestone
 
 - **Equipment Registry (Phase 4)**: register, view, edit, and search equipment, using `requirePermission(equipment:create)` / `equipment:edit` and the shared Zod validation pattern, with all mutations as Server Actions.
+
+---
+
+## Milestone 2 / Database Environment Troubleshooting (Prisma 7 `.env` loading)
+
+Built on the Milestone 2 database setup after Docker Desktop and both containers (`emms_postgres`, `emms_redis`) were confirmed healthy.
+
+### What caused the issue
+
+`npm run db:migrate` failed with:
+
+```
+Error: The datasource.url property is required in your Prisma config file when using prisma migrate dev.
+```
+
+(plus a secondary Windows `libuv` assertion during the crash: `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src/win/async.c, line 94`).
+
+**Root cause:** Prisma 7 removed the CLI's automatic `.env` loading. When the CLI loads `prisma.config.ts` (via `c12`, with `dotenv: false`), `process.env.DATABASE_URL` was `undefined`, so `datasource.url` was never set — even though `.env` existed and PostgreSQL was running. `prisma validate` still passed because schema validation doesn't resolve the URL; only commands that actually need the database (`migrate`, `db`, etc.) fail. The Windows `uv` assertion was a downstream symptom of the engine child process being torn down during the early failure, not a separate defect.
+
+A second, independent failure surfaced during `npm run db:seed`:
+
+```
+Error: PrismaClient was instantiated without any options.
+A driver adapter is required to connect to your database.
+```
+
+**Root cause:** Prisma 7 requires a driver adapter, but `prisma/seed.ts` still called `new PrismaClient()` with no options (the Milestone 3 adapter fix was applied to `src/lib/prisma.ts` only). The seed also runs via `tsx`, which does not load `.env` automatically.
+
+### What was changed
+
+- `prisma.config.ts` — added `import 'dotenv/config'` at the top so the Prisma CLI loads `.env`, and switched `url` from `process.env.DATABASE_URL` to the type-safe `env('DATABASE_URL')` helper (from `@prisma/config`), which throws a clear error if the variable is missing.
+- `prisma/seed.ts` — added `import 'dotenv/config'` (for the standalone `tsx` process) and constructed the client with the `@prisma/adapter-pg` `PrismaPg` driver adapter, mirroring `src/lib/prisma.ts`.
+- `package.json` / `package-lock.json` — added `dotenv` (`^17.4.2`) to `devDependencies` (officially recommended for Prisma 7; `dotenv` was already present transitively).
+
+No schema, model, migration, Docker, or application-architecture changes were made.
+
+### How the database connection now works
+
+- The Prisma CLI loads `.env` explicitly via `import 'dotenv/config'` inside `prisma.config.ts`, so `env('DATABASE_URL')` resolves `postgresql://postgres:password@localhost:5432/emms_dev?schema=public`.
+- The URL matches `docker-compose.yml`: `POSTGRES_USER=postgres`, `POSTGRES_PASSWORD=password`, `POSTGRES_DB=emms_dev`, port `5432`.
+- Runtime application code (`src/lib/prisma.ts`) and the seed use the `PrismaPg` driver adapter required by Prisma 7 (Next.js auto-loads `.env`; the seed loads it explicitly via `dotenv/config`).
+
+### Commands used to verify
+
+All pass:
+
+- `npx prisma validate` — schema valid (now also proves `DATABASE_URL` resolves, because `env()` throws if unset).
+- `npx prisma generate` — Prisma Client (v7.9.1) generated.
+- `npm run db:migrate` — applied migration `20260811122921_init`; database in sync.
+- `npm run db:seed` — seeded 6 users, 1 factory, 3 equipment, 3 maintenance tasks, 2 maintenance records, 2 parts used (row counts confirmed via `psql`).
+- `npm run lint`, `npx tsc --noEmit`, `npm run build` — pass.
+
+The Windows `uv` assertion did **not** recur on any of the verified commands.
+
+### What could not be verified
+
+- Confirmed with `prisma`/`psql` against the local container only; a fresh-database run (`db:reset`) was not exercised end-to-end in this pass.
+
+---
+
+## Milestone 5 — Equipment Management / Equipment Registry
+
+### What was built
+
+The first major EMMS business feature: a fully functional **Equipment Registry**. Equipment is the anchor entity — maintenance scheduling, maintenance records, downtime, dashboards, and reports will all hang off equipment records in later milestones. The milestone delivers the complete flow: list → search/filter → detail → create → edit, with all mutations executed server-side.
+
+### Equipment workflows implemented
+
+- **View list** — server-rendered table at `/equipment` showing name, asset number, factory, criticality, status, and a "View" action.
+- **Search** — substring search (case-insensitive) across name, asset number, and location via `?q=`.
+- **Filter** — status filter via `?status=` (Operational / Under maintenance / Offline).
+- **Pagination** — offset pagination (`?page=`), page size 20, with Previous/Next controls that preserve the active search and filter; results are never loaded unbounded.
+- **Empty state** — dedicated panel for "no equipment yet" vs. "no matches for your search".
+- **Detail view** — `/equipment/[id]` shows all available asset fields plus four "future milestone" panels (scheduled maintenance, maintenance history, downtime history, equipment performance) so it is clear where maintenance/downtime/reporting features will connect.
+- **Create** — `/equipment/new` renders the shared equipment form; on success the action redirects to the new asset's detail page.
+- **Edit** — `/equipment/[id]/edit` reuses the same form prefilled; on success it redirects to the detail page.
+
+### Routes/pages created
+
+| Route | Gate | Description |
+|---|---|---|
+| `/equipment` | `requirePermission(equipment:view)` | List, search, filter, paginated table |
+| `/equipment/new` | `requirePermission(equipment:create)` | Create form |
+| `/equipment/[id]` | `requirePermission(equipment:view)` | Detail page (404 if asset missing) |
+| `/equipment/[id]/edit` | `requirePermission(equipment:edit)` | Edit form (404 if asset missing) |
+| `equipment/loading.tsx` | — | Route-segment loading fallback |
+| `equipment/error.tsx` | — | Route-segment error boundary |
+
+Supporting components/files:
+
+- `src/server/actions/equipment.ts` — `createEquipment` and `updateEquipment` Server Actions.
+- `src/server/equipment.ts` — server-only data access (`listEquipment`, `getEquipmentById`, `listFactories`).
+- `src/components/equipment/equipment-form.tsx` — reusable client-side form (react-hook-form + zodResolver), used for both create and edit.
+- `src/components/equipment/equipment-status-badge.tsx` — reusable status badge.
+- `src/lib/validations.ts` — added `equipmentFormSchema`, `equipmentFilterSchema`, `EQUIPMENT_STATUSES`.
+
+### Server-side authorization
+
+- Pages use the existing centralized gates: `requirePermission(PERMISSIONS.equipmentView | equipmentCreate | equipmentEdit)`.
+- **Server Actions authorize too** — `createEquipment` calls `requirePermission(PERMISSIONS.equipmentCreate)` and `updateEquipment` calls `requirePermission(PERMISSIONS.equipmentEdit)` *inside the action*, so a direct action dispatch is just as gated as the UI. Render-time gating alone is never the security boundary.
+- No roles are hardcoded in components; UI affordances (Add equipment / Edit buttons) are surfaced with `hasPermission(...)` from the same permission matrix.
+- No client-supplied role, user id, or permission is trusted. The authenticated JWT session identifies the user; `factoryId` submitted by the form is re-validated against the database; a stale/nonexistent factory is rejected by the action.
+
+### Validation approach
+
+- A single `equipmentFormSchema` (Zod v4) drives both the client resolver (react-hook-form) and the server actions — validation is never duplicated.
+- Server actions always `safeParse` the payload and return a friendly error plus per-field issues if invalid.
+- Search/filter inputs are validated with `equipmentFilterSchema` (`q`, `status`, `page`), with resilient coercion/fallbacks so a bad value never wipes out a valid search.
+- Duplicate asset numbers are rejected server-side: a pre-insert look-up plus the Prisma `P2002` unique-constraint guard return "An asset with this number already exists."
+- Empty optional description/criticality are normalized to `null` on write.
+
+### Database interactions
+
+- **No schema change** — reuses the existing `Equipment` and `Factory` models and relationships exactly as locked in. PostgreSQL remains the source of truth via Prisma.
+- All queries go through Prisma (`src/server/equipment.ts`); all writes go through the Server Actions.
+- Created/updated timestamps come from the existing `createdAt`/`updatedAt` columns (Prisma-managed).
+- Pagination uses `take`/`skip` with a matching `count`.
+
+### Seed changes
+
+- Added one realistic `OFFLINE` asset (Hydraulic Press, `HPR-004`) so all three status values are represented during development and the status filter is meaningful. The seed remains idempotent and the demo users/tasks/records are untouched. (Seed now creates 4 equipment items.)
+
+### Testing performed
+
+Automated checks (all pass):
+
+- `npm run lint` — passes, no warnings.
+- `npx tsc --noEmit` — passes.
+- `npm run build` — passes; all equipment routes compile (`/equipment`, `/equipment/new`, `/equipment/[id]`, `/equipment/[id]/edit`).
+
+Runtime verification against the running PostgreSQL container (production build via `next start`, sign-in through the real Auth.js credentials flow):
+
+- Unauthenticated `/equipment` → 307 redirect to `/login`.
+- Logged-in roles can view the list and detail pages (`200`).
+- Search works: `?q=hydraulic` returns only the Hydraulic Press; `?status=OFFLINE` filters correctly.
+- Create, duplicate rejection, and validation were exercised by dispatching the real Server Actions (the build exposes server-action IDs; posted the serialized arguments directly):
+  - Admin create persists in PostgreSQL (row verified via `psql`).
+  - Duplicate asset number on create and on update → rejected with the friendly message.
+  - Invalid payload (missing name, empty factory) → rejected server-side with field errors.
+  - Update persists changed name/status/description/location (verified via `psql`).
+  - Updating a nonexistent id → friendly "no longer exists" error.
+  - Technician dispatching `createEquipment` directly → rejected; **no row written** (verified via `psql`).
+- UI role-awareness: Administrator and Supervisor see "Add equipment" / "Edit"; Technician, Operator, and Plant Manager do not. The server actions are the real boundary regardless.
+- Seed re-run succeeds (4 equipment items) and is idempotent.
+
+### Known limitations
+
+- **Streaming redirect nuance**: equipment routes sit under `equipment/loading.tsx` (a Suspense boundary). In a streaming context Next.js emits `redirect()` as a meta-refresh (HTTP 200 + `<meta http-equiv="refresh">` to the target) instead of a 307 when an authenticated user is unauthorized; the same request path without the boundary returns a 307. The authorization itself is enforced — the protected content is never rendered (verified: unauthorized responses leak no form/data). This is Next.js's documented streaming-redirect behavior, not a workaround.
+- **No delete**: the PRD lists equipment deletion (FR-012) with a note to preserve maintenance history, but `equipment:delete` is not part of the locked permission matrix, so delete is intentionally not implemented. It should be added to the permission matrix first, then built (Milestone 5 scope was register/view/edit/search).
+- JavaScript-unavailable form submissions were not exercised; the form relies on the react-hook-form client path (the same boundary as the existing login form).
+- no activity/audit logging yet (out of scope for this milestone).
+
+### Next milestone
+
+- **Maintenance Management (Milestone 6)**: schedule and complete maintenance tasks against registered equipment, including maintenance completion that writes `MaintenanceRecord` history, and wire the equipment detail page's scheduled-maintenance / history panels to real data.
