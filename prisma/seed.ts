@@ -129,7 +129,19 @@ async function main() {
       factoryId: factory.id,
     },
   });
-  console.log('Created 3 equipment items.');
+
+  await prisma.equipment.create({
+    data: {
+      name: 'Hydraulic Press',
+      assetNumber: 'HPR-004',
+      description: 'Stamp line hydraulic press',
+      location: 'Section D',
+      status: EquipmentStatus.OFFLINE,
+      criticality: 'Medium',
+      factoryId: factory.id,
+    },
+  });
+  console.log('Created 4 equipment items.');
 
   await prisma.maintenanceTask.create({
     data: {

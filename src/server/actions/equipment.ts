@@ -1,0 +1,150 @@
+'use server';
+
+import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
+import { Prisma } from '@prisma/client';
+import { z } from 'zod';
+import prisma from '@/lib/prisma';
+import { PERMISSIONS, requirePermission } from '@/server/rbac';
+import {
+  equipmentFormSchema,
+  type EquipmentFormValues,
+} from '@/lib/validations';
+
+export type EquipmentActionResult =
+  | { ok: true }
+  | { ok: false; error: string; fieldErrors?: Record<string, string> };
+
+function toFieldErrors(error: z.ZodError): Record<string, string> {
+  const fieldErrors: Record<string, string> = {};
+  for (const issue of error.issues) {
+    const key = issue.path[0];
+    if (typeof key === 'string' && !fieldErrors[key]) {
+      fieldErrors[key] = issue.message;
+    }
+  }
+  return fieldErrors;
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  );
+}
+
+export async function createEquipment(
+  values: EquipmentFormValues
+): Promise<EquipmentActionResult> {
+  await requirePermission(PERMISSIONS.equipmentCreate);
+
+  const parsed = equipmentFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: 'Check the highlighted fields and try again.',
+      fieldErrors: toFieldErrors(parsed.error),
+    };
+  }
+
+  const data = parsed.data;
+
+  const factory = await prisma.factory.findUnique({
+    where: { id: data.factoryId },
+  });
+  if (!factory) {
+    return {
+      ok: false,
+      error:
+        'The selected factory no longer exists. Reload the page and try again.',
+    };
+  }
+
+  try {
+    const equipment = await prisma.equipment.create({
+      data: {
+        name: data.name,
+        assetNumber: data.assetNumber,
+        description: data.description?.trim() ? data.description : null,
+        location: data.location,
+        status: data.status,
+        criticality: data.criticality?.trim() ? data.criticality : null,
+        factoryId: data.factoryId,
+      },
+    });
+
+    revalidatePath('/equipment');
+    redirect(`/equipment/${equipment.id}`);
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return {
+        ok: false,
+        error:
+          'An asset with this number already exists. Choose a different asset number.',
+      };
+    }
+    throw error;
+  }
+}
+
+export async function updateEquipment(
+  id: string,
+  values: EquipmentFormValues
+): Promise<EquipmentActionResult> {
+  await requirePermission(PERMISSIONS.equipmentEdit);
+
+  const parsed = equipmentFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: 'Check the highlighted fields and try again.',
+      fieldErrors: toFieldErrors(parsed.error),
+    };
+  }
+
+  const data = parsed.data;
+
+  const existing = await prisma.equipment.findUnique({ where: { id } });
+  if (!existing) {
+    return { ok: false, error: 'This equipment no longer exists.' };
+  }
+
+  const factory = await prisma.factory.findUnique({
+    where: { id: data.factoryId },
+  });
+  if (!factory) {
+    return {
+      ok: false,
+      error:
+        'The selected factory no longer exists. Reload the page and try again.',
+    };
+  }
+
+  try {
+    await prisma.equipment.update({
+      where: { id },
+      data: {
+        name: data.name,
+        assetNumber: data.assetNumber,
+        description: data.description?.trim() ? data.description : null,
+        location: data.location,
+        status: data.status,
+        criticality: data.criticality?.trim() ? data.criticality : null,
+        factoryId: data.factoryId,
+      },
+    });
+
+    revalidatePath('/equipment');
+    revalidatePath(`/equipment/${id}`);
+    redirect(`/equipment/${id}`);
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return {
+        ok: false,
+        error:
+          'An asset with this number already exists. Choose a different asset number.',
+      };
+    }
+    throw error;
+  }
+}
