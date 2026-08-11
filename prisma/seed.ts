@@ -1,7 +1,19 @@
-import { PrismaClient, Role, EquipmentStatus, MaintenanceStatus, Priority } from '@prisma/client';
+import 'dotenv/config';
+import {
+  PrismaClient,
+  Role,
+  EquipmentStatus,
+  MaintenanceStatus,
+  Priority,
+} from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({
+    connectionString: process.env.DATABASE_URL,
+  }),
+});
 
 const DEMO_PASSWORD = 'password123';
 
@@ -78,7 +90,9 @@ async function main() {
       role: Role.RELIABILITY_ENGINEER,
     },
   });
-  console.log('Created users: Admin, Supervisor, Technician, Operator, Plant Manager, Reliability Engineer');
+  console.log(
+    'Created users: Admin, Supervisor, Technician, Operator, Plant Manager, Reliability Engineer'
+  );
 
   const equipment1 = await prisma.equipment.create({
     data: {
@@ -181,7 +195,11 @@ async function main() {
   });
   console.log('Created 2 maintenance records.');
 
-  console.log('Created admin and supervisor with known roles:', admin.role, supervisor.role);
+  console.log(
+    'Created admin and supervisor with known roles:',
+    admin.role,
+    supervisor.role
+  );
   console.log('Database seed completed successfully!');
 }
 

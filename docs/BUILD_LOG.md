@@ -289,3 +289,60 @@ The `prisma.config.ts` file reads this variable and passes it to Prisma Migrate.
 ### Next milestone
 
 - **Equipment Registry (Phase 4)**: register, view, edit, and search equipment, using `requirePermission(equipment:create)` / `equipment:edit` and the shared Zod validation pattern, with all mutations as Server Actions.
+
+---
+
+## Milestone 2 / Database Environment Troubleshooting (Prisma 7 `.env` loading)
+
+Built on the Milestone 2 database setup after Docker Desktop and both containers (`emms_postgres`, `emms_redis`) were confirmed healthy.
+
+### What caused the issue
+
+`npm run db:migrate` failed with:
+
+```
+Error: The datasource.url property is required in your Prisma config file when using prisma migrate dev.
+```
+
+(plus a secondary Windows `libuv` assertion during the crash: `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src/win/async.c, line 94`).
+
+**Root cause:** Prisma 7 removed the CLI's automatic `.env` loading. When the CLI loads `prisma.config.ts` (via `c12`, with `dotenv: false`), `process.env.DATABASE_URL` was `undefined`, so `datasource.url` was never set — even though `.env` existed and PostgreSQL was running. `prisma validate` still passed because schema validation doesn't resolve the URL; only commands that actually need the database (`migrate`, `db`, etc.) fail. The Windows `uv` assertion was a downstream symptom of the engine child process being torn down during the early failure, not a separate defect.
+
+A second, independent failure surfaced during `npm run db:seed`:
+
+```
+Error: PrismaClient was instantiated without any options.
+A driver adapter is required to connect to your database.
+```
+
+**Root cause:** Prisma 7 requires a driver adapter, but `prisma/seed.ts` still called `new PrismaClient()` with no options (the Milestone 3 adapter fix was applied to `src/lib/prisma.ts` only). The seed also runs via `tsx`, which does not load `.env` automatically.
+
+### What was changed
+
+- `prisma.config.ts` — added `import 'dotenv/config'` at the top so the Prisma CLI loads `.env`, and switched `url` from `process.env.DATABASE_URL` to the type-safe `env('DATABASE_URL')` helper (from `@prisma/config`), which throws a clear error if the variable is missing.
+- `prisma/seed.ts` — added `import 'dotenv/config'` (for the standalone `tsx` process) and constructed the client with the `@prisma/adapter-pg` `PrismaPg` driver adapter, mirroring `src/lib/prisma.ts`.
+- `package.json` / `package-lock.json` — added `dotenv` (`^17.4.2`) to `devDependencies` (officially recommended for Prisma 7; `dotenv` was already present transitively).
+
+No schema, model, migration, Docker, or application-architecture changes were made.
+
+### How the database connection now works
+
+- The Prisma CLI loads `.env` explicitly via `import 'dotenv/config'` inside `prisma.config.ts`, so `env('DATABASE_URL')` resolves `postgresql://postgres:password@localhost:5432/emms_dev?schema=public`.
+- The URL matches `docker-compose.yml`: `POSTGRES_USER=postgres`, `POSTGRES_PASSWORD=password`, `POSTGRES_DB=emms_dev`, port `5432`.
+- Runtime application code (`src/lib/prisma.ts`) and the seed use the `PrismaPg` driver adapter required by Prisma 7 (Next.js auto-loads `.env`; the seed loads it explicitly via `dotenv/config`).
+
+### Commands used to verify
+
+All pass:
+
+- `npx prisma validate` — schema valid (now also proves `DATABASE_URL` resolves, because `env()` throws if unset).
+- `npx prisma generate` — Prisma Client (v7.9.1) generated.
+- `npm run db:migrate` — applied migration `20260811122921_init`; database in sync.
+- `npm run db:seed` — seeded 6 users, 1 factory, 3 equipment, 3 maintenance tasks, 2 maintenance records, 2 parts used (row counts confirmed via `psql`).
+- `npm run lint`, `npx tsc --noEmit`, `npm run build` — pass.
+
+The Windows `uv` assertion did **not** recur on any of the verified commands.
+
+### What could not be verified
+
+- Confirmed with `prisma`/`psql` against the local container only; a fresh-database run (`db:reset`) was not exercised end-to-end in this pass.
