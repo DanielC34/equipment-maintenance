@@ -1,11 +1,22 @@
 import { PrismaClient, Role, EquipmentStatus, MaintenanceStatus, Priority } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
+
+const DEMO_PASSWORD = 'password123';
 
 async function main() {
   console.log('Starting database seed...');
 
-  // Create Factory
+  await prisma.partUsed.deleteMany();
+  await prisma.maintenanceRecord.deleteMany();
+  await prisma.maintenanceTask.deleteMany();
+  await prisma.equipment.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.factory.deleteMany();
+
+  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
+
   const factory = await prisma.factory.create({
     data: {
       name: 'Main Assembly Plant',
@@ -14,21 +25,20 @@ async function main() {
   });
   console.log(`Created factory: ${factory.name}`);
 
-  // Create Users
-  await prisma.user.create({
+  const admin = await prisma.user.create({
     data: {
       name: 'Admin User',
-      email: 'admin@example.com',
-      password: 'hashed_password_placeholder',
+      email: 'admin@emms.dev',
+      password: passwordHash,
       role: Role.ADMINISTRATOR,
     },
   });
 
-  await prisma.user.create({
+  const supervisor = await prisma.user.create({
     data: {
       name: 'Supervisor User',
-      email: 'supervisor@example.com',
-      password: 'hashed_password_placeholder',
+      email: 'supervisor@emms.dev',
+      password: passwordHash,
       role: Role.SUPERVISOR,
     },
   });
@@ -36,8 +46,8 @@ async function main() {
   const technician = await prisma.user.create({
     data: {
       name: 'Technician User',
-      email: 'technician@example.com',
-      password: 'hashed_password_placeholder',
+      email: 'technician@emms.dev',
+      password: passwordHash,
       role: Role.TECHNICIAN,
     },
   });
@@ -45,14 +55,31 @@ async function main() {
   await prisma.user.create({
     data: {
       name: 'Operator User',
-      email: 'operator@example.com',
-      password: 'hashed_password_placeholder',
+      email: 'operator@emms.dev',
+      password: passwordHash,
       role: Role.OPERATOR,
     },
   });
-  console.log(`Created users: Admin, Supervisor, Technician, Operator`);
 
-  // Create Equipment
+  await prisma.user.create({
+    data: {
+      name: 'Plant Manager User',
+      email: 'manager@emms.dev',
+      password: passwordHash,
+      role: Role.PLANT_MANAGER,
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      name: 'Reliability Engineer User',
+      email: 'reliability@emms.dev',
+      password: passwordHash,
+      role: Role.RELIABILITY_ENGINEER,
+    },
+  });
+  console.log('Created users: Admin, Supervisor, Technician, Operator, Plant Manager, Reliability Engineer');
+
   const equipment1 = await prisma.equipment.create({
     data: {
       name: 'CNC Milling Machine',
@@ -88,9 +115,8 @@ async function main() {
       factoryId: factory.id,
     },
   });
-  console.log(`Created 3 equipment items.`);
+  console.log('Created 3 equipment items.');
 
-  // Create Maintenance Tasks
   await prisma.maintenanceTask.create({
     data: {
       title: 'Monthly Calibration',
@@ -126,9 +152,8 @@ async function main() {
       assignedUserId: technician.id,
     },
   });
-  console.log(`Created 3 maintenance tasks.`);
+  console.log('Created 3 maintenance tasks.');
 
-  // Create Maintenance Records
   await prisma.maintenanceRecord.create({
     data: {
       equipmentId: equipment1.id,
@@ -154,8 +179,9 @@ async function main() {
       notes: 'Updated to v2.4.1',
     },
   });
-  console.log(`Created 2 maintenance records.`);
+  console.log('Created 2 maintenance records.');
 
+  console.log('Created admin and supervisor with known roles:', admin.role, supervisor.role);
   console.log('Database seed completed successfully!');
 }
 
