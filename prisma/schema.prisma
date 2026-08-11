@@ -39,7 +39,7 @@ model User {
   id        String   @id @default(cuid())
   name      String
   email     String   @unique
-  password  String? // Auth identifier placeholder
+  password  String?
   role      Role     @default(OPERATOR)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
