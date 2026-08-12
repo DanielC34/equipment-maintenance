@@ -444,3 +444,108 @@ Runtime verification against the running PostgreSQL container (production build 
 ### Next milestone
 
 - **Maintenance Management (Milestone 6)**: schedule and complete maintenance tasks against registered equipment, including maintenance completion that writes `MaintenanceRecord` history, and wire the equipment detail page's scheduled-maintenance / history panels to real data.
+
+---
+
+## Milestone 6 — Maintenance Scheduling
+
+### What was built
+
+The complete **scheduling side** of the maintenance workflow. Maintenance tasks can now be listed, searched, filtered, paginated, viewed in detail, scheduled (create), and updated (edit) against registered equipment — reusing the same server-first pattern as the equipment registry. The completion side (performing a task and writing maintenance history) is intentionally deferred to the next milestone, as the detail page's "Completion and history" panel makes clear.
+
+The milestone delivers the full flow: list → search/filter → pagination → detail → create → edit, with all mutations executed server-side and authorized inside the Server Actions themselves.
+
+### Maintenance workflows implemented
+
+- **View list** — server-rendered page at `/maintenance` showing title, equipment, assignee, scheduled date, priority, and status, with a "View" action.
+- **Search** — substring search (case-insensitive) across task title, description, and equipment name via `?q=`.
+- **Filter** — status filter via `?status=` (Scheduled / In progress / Completed / Cancelled) and priority filter via `?priority=` (Low / Medium / High / Critical).
+- **Pagination** — offset pagination (`?page=`), page size 20, with Previous/Next controls that preserve the active search and filters; results are never loaded unbounded.
+- **Empty state** — dedicated panel for "no maintenance tasks yet" vs. "no maintenance tasks match your search".
+- **Sorting** — tasks are ordered by scheduled date (soonest first), then creation time.
+- **Detail view** — `/maintenance/[id]` shows equipment (linked to the registry), assignee, scheduled date, status, priority, location, created/updated timestamps, and description, plus a "Completion and history" placeholder pointing at the next milestone.
+- **Create** — `/maintenance/new` renders the shared maintenance form; on success the action redirects to the new task's detail page.
+- **Edit** — `/maintenance/[id]/edit` reuses the same form prefilled; on success it redirects to the detail page. Editing a task preserves its current status (only scheduling details change).
+
+### Routes/pages created
+
+| Route | Gate | Description |
+|---|---|---|
+| `/maintenance` | `requirePermission(maintenance:view)` | List, search, filter, paginated tasks |
+| `/maintenance/new` | `requirePermission(maintenance:schedule)` | Create form |
+| `/maintenance/[id]` | `requirePermission(maintenance:view)` | Detail page (404 if task missing) |
+| `/maintenance/[id]/edit` | `requirePermission(maintenance:schedule)` | Edit form (404 if task missing) |
+| `maintenance/loading.tsx` | — | Route-segment loading fallback |
+| `maintenance/error.tsx` | — | Route-segment error boundary |
+
+Supporting components/files:
+
+- `src/server/actions/maintenance.ts` — `createMaintenanceTask` and `updateMaintenanceTask` Server Actions.
+- `src/server/maintenance.ts` — server-only data access (`listMaintenanceTasks`, `getMaintenanceTaskById`, `listEquipmentsForSelect`, `listAssignableUsers`, `userCanBeAssigned`).
+- `src/components/maintenance/maintenance-form.tsx` — reusable client-side form (react-hook-form + zodResolver), used for both create and edit.
+- `src/components/maintenance/maintenance-status-badge.tsx` — reusable status badge.
+- `src/components/maintenance/maintenance-priority-badge.tsx` — reusable priority badge.
+- `src/lib/validations.ts` — added `maintenanceTaskFormSchema`, `maintenanceFilterSchema`, `MAINTENANCE_STATUSES`, `PRIORITIES`.
+
+### Permission / RBAC changes
+
+- Added the `maintenance:view` permission to the locked matrix and granted it to `ADMINISTRATOR`, `SUPERVISOR`, and `TECHNICIAN`. Operators and Plant Managers do **not** get it, so the "Maintenance" nav entry and the list/detail pages are hidden from them.
+- The side-nav "Maintenance" entry now gates on `maintenance:view` instead of the blanket `app:view`, so the link only appears for maintenance-capable roles.
+- `maintenance:schedule` (create/edit) is held by `ADMINISTRATOR` and `SUPERVISOR`; `maintenance:complete` (used as the "who can be assigned" boundary) is held by `ADMINISTRATOR`, `SUPERVISOR`, and `TECHNICIAN`.
+
+### Server-side authorization & assignment rules
+
+- Pages use the existing centralized gates (`requirePermission`) plus `hasPermission(...)` to surface Edit/Schedule affordances only to capable roles.
+- **Server Actions authorize too** — `createMaintenanceTask` and `updateMaintenanceTask` call `requirePermission(PERMISSIONS.maintenanceSchedule)` *inside the action*, so a direct action dispatch is just as gated as the UI. Render-time gating alone is never the security boundary.
+- **Assignment rule** — a task can only be assigned to a user capable of completing maintenance (`maintenance:complete`): `userCanBeAssigned` performs the check and rejects operators, plant managers, and nonexistent users in the action. The assignee dropdown is filtered to the same set.
+- No client-supplied role or user id is trusted; the authenticated session identifies the user, and submitted `equipmentId` is re-validated against the database (stale/nonexistent equipment is rejected).
+
+### Validation approach
+
+- A single `maintenanceTaskFormSchema` (Zod v4) drives both the client resolver (react-hook-form) and the server actions — validation is never duplicated.
+- Server actions always `safeParse` the payload and return a friendly error plus per-field issues if invalid.
+- Search/filter inputs are validated with `maintenanceFilterSchema` (`q`, `status`, `priority`, `page`), with resilient coercion/fallbacks so a bad value never wipes out a valid search.
+- The scheduled date is checked as a real parseable datetime; empty optional description is normalized to `null` on write.
+
+### Database interactions
+
+- **No schema change** — reuses the existing `MaintenanceTask` model and its `Equipment` / `User` (assignee) relationships exactly as locked in Milestone 2. PostgreSQL remains the source of truth via Prisma.
+- All queries go through Prisma (`src/server/maintenance.ts`); all writes go through the Server Actions.
+- Created/updated timestamps come from the existing `createdAt`/`updatedAt` columns (Prisma-managed).
+- Pagination uses `take`/`skip` with a matching `count`.
+
+### Testing performed
+
+Automated checks (all pass):
+
+- `npm run lint` — passes, no warnings.
+- `npx tsc --noEmit` — passes.
+- `npm run build` — passes; all maintenance routes compile (`/maintenance`, `/maintenance/new`, `/maintenance/[id]`, `/maintenance/[id]/edit`).
+
+Runtime verification against the running PostgreSQL container (production build via `next start`, sign-in through the real Auth.js credentials flow). **40/40 checks passed**, including:
+
+- Unauthenticated `/maintenance` → 307 redirect to `/login`.
+- Admin and technician can view list + detail (`200`); operator and plant manager are redirected (`/unauthorized`) with **no task data leaked** (verified by searching the response body).
+- Search (`?q=`) finds matches and shows the empty state when nothing matches without leaking other tasks; status and priority filters return only matching rows; `?page=2` renders.
+- Detail page renders equipment, assignee, scheduled date, status, priority, and location; bogus id returns 404.
+- Create/update were exercised by dispatching the real Server Actions (the build exposes server-action IDs; posted the serialized arguments directly):
+  - Admin create persists in PostgreSQL (row verified via `psql`), sets status `SCHEDULED`, and the action redirects to the new task.
+  - Admin update persists changed title/priority/description/date and preserves status (verified via `psql`).
+  - Invalid payloads (empty title, invalid date, missing equipment, missing assignee) → rejected server-side with the friendly field message; **no row written**.
+  - Stale/nonexistent equipment → "no longer exists" error; **no row written**.
+  - Assignment rule: operator, plant manager, and nonexistent user are all rejected as assignees; **no row written**.
+  - Technician dispatching `createMaintenanceTask` directly → rejected; **no row written**. Same for technician dispatching `updateMaintenanceTask` → rejected, task unchanged.
+  - Supervisor dispatches `createMaintenanceTask` (role allowed) → row written as `SCHEDULED` (verified via `psql`).
+- Page gates: admin/supervisor see the create/edit forms (`name="equipmentId"` present); technician's request for `/maintenance/new` and `/maintenance/[id]/edit` is gated with **no form leaked**.
+- All test artifacts (tasks created during verification) were deleted from the database afterward; only the 3 seeded tasks remain.
+
+### Known limitations
+
+- **Completion workflow not built**: marking a task as performed and attaching maintenance history is the next milestone; the detail page shows the "Completion and history" placeholder until then.
+- **Streaming redirect nuance**: maintenance routes sit under `maintenance/loading.tsx` (a Suspense boundary). In a streaming context Next.js emits `redirect()` as a meta-refresh (HTTP 200 + `<meta http-equiv="refresh">` to the target) instead of a 307 when an authenticated user is unauthorized. The authorization itself is enforced — the protected content is never rendered (verified: unauthorized responses leak no form/data, same as Milestone 5).
+- JavaScript-unavailable form submissions were not exercised; the form relies on the react-hook-form client path (the same boundary as the login and equipment forms).
+- No activity/audit logging yet (out of scope for this milestone).
+
+### Next milestone
+
+- **Maintenance Completion (Milestone 7)**: let maintenance-capable users mark a task performed, record what was done / by whom / when / parts used, write `MaintenanceRecord` history, and wire the equipment detail page's scheduled-maintenance and history panels to real data.

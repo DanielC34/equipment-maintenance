@@ -50,7 +50,7 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         label: 'Maintenance',
         description: 'Scheduled and completed work',
         icon: CalendarClock,
-        permission: PERMISSIONS.appView,
+        permission: PERMISSIONS.maintenanceView,
       },
       {
         href: '/downtime',
