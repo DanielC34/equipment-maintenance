@@ -48,3 +48,51 @@ export const equipmentFilterSchema = z.object({
 });
 
 export type EquipmentFilterValues = z.infer<typeof equipmentFilterSchema>;
+
+export const MAINTENANCE_STATUSES = [
+  'SCHEDULED',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'CANCELLED',
+] as const;
+
+export const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
+
+export const maintenanceTaskFormSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, { error: 'Task title is required.' })
+    .max(200),
+  description: z.string().trim().max(2000).optional(),
+  equipmentId: z.string().min(1, { error: 'Select the equipment.' }),
+  assignedUserId: z.string().min(1, { error: 'Select an assigned user.' }),
+  scheduledDate: z
+    .string({ error: 'Select a scheduled date.' })
+    .min(1, { error: 'Select a scheduled date.' })
+    .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+      error: 'Enter a valid date and time.',
+    }),
+  priority: z.enum(PRIORITIES, { error: 'Priority is required.' }),
+});
+
+export type MaintenanceTaskFormValues = z.infer<
+  typeof maintenanceTaskFormSchema
+>;
+
+export const maintenanceFilterSchema = z.object({
+  q: z.string().trim().max(200).catch(''),
+  status: z
+    .enum(MAINTENANCE_STATUSES)
+    .or(z.literal(''))
+    .transform((value) => (value === '' ? undefined : value))
+    .catch(undefined),
+  priority: z
+    .enum(PRIORITIES)
+    .or(z.literal(''))
+    .transform((value) => (value === '' ? undefined : value))
+    .catch(undefined),
+  page: z.coerce.number().int().min(1).catch(1),
+});
+
+export type MaintenanceFilterValues = z.infer<typeof maintenanceFilterSchema>;
