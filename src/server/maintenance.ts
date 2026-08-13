@@ -78,6 +78,14 @@ export async function getMaintenanceTaskById(id: string) {
       assignedUser: {
         select: { id: true, name: true, email: true, role: true },
       },
+      maintenanceRecord: {
+        include: {
+          technician: {
+            select: { id: true, name: true, email: true, role: true },
+          },
+          partsUsed: true,
+        },
+      },
     },
   });
 }

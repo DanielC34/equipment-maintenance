@@ -96,3 +96,30 @@ export const maintenanceFilterSchema = z.object({
 });
 
 export type MaintenanceFilterValues = z.infer<typeof maintenanceFilterSchema>;
+
+export const maintenancePartSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, { error: 'Part name is required.' })
+    .max(120),
+  quantity: z
+    .number({ error: 'Quantity must be a number.' })
+    .int({ error: 'Quantity must be a whole number.' })
+    .min(1, { error: 'Quantity must be at least 1.' })
+    .max(100000, { error: 'Quantity is too large.' }),
+});
+
+export const maintenanceCompletionSchema = z.object({
+  description: z
+    .string()
+    .trim()
+    .min(1, { error: 'Describe the work performed.' })
+    .max(2000),
+  notes: z.string().trim().max(2000),
+  parts: z.array(maintenancePartSchema).max(50),
+});
+
+export type MaintenanceCompletionValues = z.infer<
+  typeof maintenanceCompletionSchema
+>;
