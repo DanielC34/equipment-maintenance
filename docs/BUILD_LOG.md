@@ -615,3 +615,88 @@ Runtime verification against the running PostgreSQL container (production build 
 ### Next milestone
 
 - **Activity/audit log (Milestone 8)**: record who did what (created/started/completed/edited) against tasks, records, equipment, and users as a `MaintenanceAuditLog`-style table; consider wiring the equipment detail page's history panel to the now-populated `MaintenanceRecord` data.
+
+---
+
+## Milestone 8 — Maintenance History
+
+**Goal**: surface the completed-maintenance history that Milestones 6/7 began populating — a read-only, searchable, filterable, paginated **global history** list, a **record detail** page, and an **equipment-scoped history** page, all protected by the existing `maintenanceView` permission. No new CRUD, no schema redesign: history rows are the `MaintenanceRecord` rows only ever written by a successful task completion.
+
+### Schema / indexes
+
+- No new models or fields. Added two cover indexes to make the common history queries (newest-first ordering, equipment-scoped listing) efficient:
+  - `@@index([completedDate])`
+  - `@@index([equipmentId, completedDate])`
+- Migration `20260814120000_add_maintenance_history_indexes` created manually with `prisma migrate diff --from-config-datasource --to-schema`, made BOM-free (required by the migration reader / psql), applied with `prisma migrate deploy`, and `prisma generate` re-ran. Both indexes verified in `pg_indexes`.
+
+### Data access (`src/server/maintenance.ts`)
+
+- `MAINTENANCE_HISTORY_PAGE_SIZE = 20`.
+- **`listMaintenanceHistory(filter)`** — the single query behind both history pages:
+  - Optional `q` (OR across record `description`/`notes`, `equipment.name`/`equipment.assetNumber`, `technician.name`, `task.title`/`task.description`, case-insensitive contains).
+  - Optional `equipmentId`, `technicianId`, and a `from`/`to` date range (`gte` start, `lte` end-of-day `23:59:59.999`).
+  - Sorted `completedDate` desc, then `createdAt` desc (stable newest-first).
+  - Paginated via `skip`/`take`; includes `equipment` (id/name/assetNumber), `technician` (id/name/email/role), `task` (id/title/priority/status/scheduledDate), and `_count.partsUsed`.
+  - Returns `{ records, total, page, totalPages }`.
+- **`getMaintenanceRecordById(id)`** — includes equipment + factory, technician, task (title/description/priority/status/scheduledDate), and `partsUsed` ordered by name. Returns `null` for unknown ids.
+- **`getEquipmentMaintenanceHistory(equipmentId, page, q)`** — thin wrapper over `listMaintenanceHistory` for the equipment-scoped page (also returns the total for the equipment detail card).
+
+### Validation (`src/lib/validations.ts`)
+
+- **`maintenanceHistoryFilterSchema`** (+ type `MaintenanceHistoryFilterValues`): `q` trimmed, max 200, empty → `undefined`, any error → `undefined`; optional `equipmentId`/`technicianId` (trimmed, empty → `undefined`); optional `from`/`to` dates (produced by browser date inputs, so no strict validation beyond catch → `undefined`); `page` coerced integer, min 1, any error → 1. All filters stay entirely optional.
+
+### UI / routes
+
+- **`/maintenance/history`** (`src/app/(app)/maintenance/history/page.tsx`) — global history:
+  - `requirePermission(PERMISSIONS.maintenanceView)` at the top; unauthorized/external users are redirected by the shell.
+  - PageHeader shows the live total count.
+  - GET filter form: free-text search, equipment dropdown (all + `name · assetNumber`), technician dropdown (all + `name · email`), `from`/`to` date inputs, Search + Clear. Query params round-trip through the pagination links and form so filters persist on page 2+.
+  - Table: Completed (localized date), Equipment (name + asset tag), Task (title or "Standalone record" when the batch seed record has no linked task), Technician, **Work performed** (line-clamped description), Priority badge, Parts count, View link.
+  - Pagination (Previous/Next, "Showing x–y of N") with page links built from the current search params; last page clamp.
+  - Empty states: "No completed maintenance yet" vs "No completed maintenance records match your search".
+- **`/maintenance/history/[id]`** (`src/app/(app)/maintenance/history/[id]/page.tsx`) — read-only record detail:
+  - `getMaintenanceRecordById`; `notFound()` for unknown/invalid ids (renders the 404 boundary).
+  - Card: Record (work performed, notes, completed-on, created-on), Equipment (name, asset tag, factory, View link), Task (title/priority/status/scheduled date, or "Standalone record"), Parts used (name + quantity, or "No parts recorded").
+  - Back to history link. No edit/delete UI, no form, no server actions.
+- **`/equipment/[id]/history`** (`src/app/(app)/equipment/[id]/history/page.tsx`) — equipment-scoped history:
+  - `requirePermission(PERMISSIONS.maintenanceView)` (not `equipmentView`, so viewers of equipment still need maintenance rights to see history).
+  - Equipment header card + search box + pagination; history table identical in spirit to the global one, scoped to the equipment.
+  - Empty state: "No maintenance history exists for this equipment yet."
+- **Equipment detail page** (`src/app/(app)/equipment/[id]/page.tsx`):
+  - New "Maintenance history" outline button in the header actions (visible to `maintenanceView` holders) linking to `history`.
+  - Replaced one SectionPlaceholder with a **real history card**: total record count (from `getEquipmentMaintenanceHistory(id, 1)`) + View history link + FileClock icon; shows "No maintenance history yet" when zero.
+- **Maintenance page** (`src/app/(app)/maintenance/page.tsx`): added a "History" outline button in the header actions before "Schedule maintenance".
+
+### Design decisions & mechanics
+
+- **Newest-first always**: completed-date desc with insertion-order tiebreak matches the "history = what happened" mental model.
+- **RSC numbers are stream tokens**: with `next start`, list/detail HTML renders counts through React Flight; raw curl output splits numbers into tokens (`\" of \",22`, `[\"Qty \",2]`). Runtime assertions therefore match the stream-escaped forms (e.g. `of \\",22`) rather than naive "of 22".
+- **Streaming 404**: a missing record id returns the not-found boundary page (body contains "This page could not be found") while HTTP stays 200 because of streaming; tests assert on body content.
+- **No new server actions** were added — history is read-only by construction; the only write paths in the codebase remain Milestone 6/7's task/equipment/record actions.
+- **`PartUsed.name`** (not `partName`) is the actual schema column used in queries and detail rendering.
+
+### Verification
+
+`npm run lint`, `npx tsc --noEmit`, and `npm run build` all pass (19 routes, including the three new history routes). Runtime suite (`m8-test.ps1`) ran against the production build (`next start`, PID note: server restarted after the rebuild) with real Auth.js cookie jars for admin/technician/supervisor/operator. **44/44 assertions passed**, including:
+
+- Global history loads with both seed records visible; `Monthly Calibration` (SCHEDULED) and `Replace Conveyor Motor` (IN_PROGRESS) are **not** shown.
+- Record detail shows work performed, technician, equipment + asset tag, both parts with quantities (`Qty 2`); unknown record id renders the 404 boundary.
+- Equipment-scoped history lists the CNC records; Hydraulic Press shows the "No maintenance history exists for this equipment yet" empty state.
+- Equipment detail links to history and shows the live count card.
+- Search `pump`/`coolant`/`robot`/`Technician` returns the right rows; `zzznomatch` shows the search empty state.
+- Equipment and technician dropdown filters narrow correctly.
+- `from`/`to` date range within the records' completion window matches; a future-only `from` yields zero rows.
+- Pagination: inserted 22 probe records (`m8pg…`) → page 1 shows the newest probe, page 2 the oldest, "of 22" count, correct Next link, no Prev on page 1 → probes deleted afterward (DB returned to exactly 3 rows, 0 probes).
+- Operator is blocked from both history routes (no `maintenanceView`); anon is redirected to login; supervisor is allowed.
+- No edit/delete controls or forms on the record detail; refresh returns a consistent live count.
+- DB verification via `psql`: every record points to the correct equipment/technician, `PartUsed` rows belong to the right record (Coolant Pump×1 + Seal Kit×2 → coolant record; Hydraulic Seal×1 → robot record).
+
+### Known limitations
+
+- **Only completed work is visible**: history is `MaintenanceRecord`-backed, and records exist only after a task is completed (by design). Scheduled/in-progress work lives on the maintenance task list.
+- The M7 manual demo record (`cmss4muui0009dkv37cn0t5z7`, linked to the seeded COMPLETED "Robot Arm Lubrication" task) is retained as realistic history data.
+- Streaming-related HTTP 200 on 404s is a Next.js behavior, not a logic gap.
+
+### Next milestone
+
+- **Activity/audit log (Milestone 9)**: record who did what (created/started/completed/edited) against tasks, records, equipment, and users as a `MaintenanceAuditLog`-style table.

@@ -1,46 +1,35 @@
 import Link from 'next/link';
-import { Plus, Inbox, History } from 'lucide-react';
+import { notFound } from 'next/navigation';
+import { ArrowLeft, Inbox } from 'lucide-react';
+import { maintenanceHistoryFilterSchema } from '@/lib/validations';
+import { PERMISSIONS, requirePermission } from '@/server/rbac';
 import {
-  MAINTENANCE_STATUSES,
-  PRIORITIES,
-  maintenanceFilterSchema,
-  type MaintenanceFilterValues,
-} from '@/lib/validations';
-import type { MaintenanceStatus, Priority } from '@prisma/client';
-import {
-  PERMISSIONS,
-  requirePermission,
-  hasPermission,
-} from '@/server/rbac';
-import { listMaintenanceTasks } from '@/server/maintenance';
+  getEquipmentMaintenanceHistory,
+} from '@/server/maintenance';
+import { getEquipmentById } from '@/server/equipment';
 import { PageHeader } from '@/components/page-header';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { MaintenanceStatusBadge } from '@/components/maintenance/maintenance-status-badge';
 import { MaintenancePriorityBadge } from '@/components/maintenance/maintenance-priority-badge';
 
-export const metadata = {
-  title: 'Maintenance | EMMS',
-};
-
-const STATUS_LABELS: Record<MaintenanceStatus, string> = {
-  SCHEDULED: 'Scheduled',
-  IN_PROGRESS: 'In progress',
-  COMPLETED: 'Completed',
-  CANCELLED: 'Cancelled',
-};
-
-const PRIORITY_LABELS: Record<Priority, string> = {
-  LOW: 'Low',
-  MEDIUM: 'Medium',
-  HIGH: 'High',
-  CRITICAL: 'Critical',
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const equipment = await getEquipmentById(id);
+  return {
+    title: equipment
+      ? `${equipment.name} history | EMMS`
+      : 'Equipment history | EMMS',
+  };
+}
 
 const inputClass =
   'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
 
-function formatScheduledDate(date: Date): string {
+function formatCompletedDate(date: Date): string {
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
     month: 'short',
@@ -50,60 +39,54 @@ function formatScheduledDate(date: Date): string {
   }).format(date);
 }
 
-export default async function MaintenancePage({
+export default async function EquipmentHistoryPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const session = await requirePermission(PERMISSIONS.maintenanceView);
+  await requirePermission(PERMISSIONS.maintenanceView);
+
+  const { id } = await params;
+  const equipment = await getEquipmentById(id);
+  if (!equipment) {
+    notFound();
+  }
 
   const raw = await searchParams;
-  const filter: MaintenanceFilterValues = maintenanceFilterSchema.parse(raw);
-  const { q, status, priority, page } = filter;
+  const filter = maintenanceHistoryFilterSchema.parse(raw);
+  const { page, q } = filter;
 
-  const { items, total, pageSize, totalPages } = await listMaintenanceTasks({
-    q,
-    status,
-    priority,
-    page,
-  });
-  const canCreate = hasPermission(session, PERMISSIONS.maintenanceSchedule);
-  const hasFilters = Boolean(q || status || priority);
+  const { items, total, pageSize, totalPages } =
+    await getEquipmentMaintenanceHistory(id, page, q);
+
+  const hasFilters = Boolean(q);
   const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, total);
 
   function pageHref(target: number): string {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
-    if (status) params.set('status', status);
-    if (priority) params.set('priority', priority);
     if (target > 1) params.set('page', String(target));
     const query = params.toString();
-    return query ? `/maintenance?${query}` : '/maintenance';
+    return query
+      ? `/equipment/${id}/history?${query}`
+      : `/equipment/${id}/history`;
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Maintenance"
-        description={`${total} ${total === 1 ? 'task' : 'tasks'} scheduled`}
+        title={`${equipment.name} — history`}
+        description={`${equipment.assetNumber} · ${total} ${total === 1 ? 'completed maintenance record' : 'completed maintenance records'}`}
         actions={
-          <div className="flex items-center gap-2">
-            <Link href="/maintenance/history">
-              <Button variant="outline">
-                <History aria-hidden />
-                History
-              </Button>
-            </Link>
-            {canCreate ? (
-              <Link href="/maintenance/new">
-                <Button>
-                  <Plus aria-hidden />
-                  Schedule maintenance
-                </Button>
-              </Link>
-            ) : null}
-          </div>
+          <Link href={`/equipment/${equipment.id}`}>
+            <Button variant="outline">
+              <ArrowLeft aria-hidden />
+              Back to equipment
+            </Button>
+          </Link>
         }
       />
 
@@ -116,62 +99,25 @@ export default async function MaintenancePage({
             htmlFor="q"
             className="block text-sm font-medium text-gray-700"
           >
-            Search
+            Search this history
           </label>
           <input
             id="q"
             name="q"
             type="search"
             defaultValue={q}
-            placeholder="Task title, description, or equipment"
+            placeholder="Task, description, or notes"
             className={`${inputClass} sm:mt-1`}
           />
-        </div>
-        <div>
-          <label
-            htmlFor="status"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Status
-          </label>
-          <select
-            id="status"
-            name="status"
-            defaultValue={status ?? ''}
-            className={`${inputClass} sm:mt-1`}
-          >
-            <option value="">All statuses</option>
-            {MAINTENANCE_STATUSES.map((value) => (
-              <option key={value} value={value}>
-                {STATUS_LABELS[value]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label
-            htmlFor="priority"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Priority
-          </label>
-          <select
-            id="priority"
-            name="priority"
-            defaultValue={priority ?? ''}
-            className={`${inputClass} sm:mt-1`}
-          >
-            <option value="">All priorities</option>
-            {PRIORITIES.map((value) => (
-              <option key={value} value={value}>
-                {PRIORITY_LABELS[value]}
-              </option>
-            ))}
-          </select>
         </div>
         <Button type="submit" variant="outline">
           Search
         </Button>
+        {hasFilters ? (
+          <Link href={`/equipment/${equipment.id}/history`}>
+            <Button variant="ghost">Clear</Button>
+          </Link>
+        ) : null}
       </form>
 
       {items.length === 0 ? (
@@ -179,15 +125,13 @@ export default async function MaintenancePage({
           <Inbox aria-hidden className="size-8 text-gray-400" />
           <h2 className="text-base font-semibold text-gray-900">
             {hasFilters
-              ? 'No maintenance tasks match your search'
-              : 'No maintenance tasks scheduled yet'}
+              ? 'No maintenance records match your search'
+              : 'No maintenance history exists for this equipment yet'}
           </h2>
           <p className="max-w-md text-sm text-gray-600">
             {hasFilters
-              ? 'Try a different search term, status, or priority, or clear the filters.'
-              : canCreate
-                ? 'Schedule the first maintenance task to start building the maintenance log.'
-                : 'Maintenance tasks scheduled by an administrator or supervisor will appear here.'}
+              ? 'Try a different search term or clear the search.'
+              : 'Completed maintenance work on this asset will appear here with the task, technician, and parts used.'}
           </p>
         </div>
       ) : (
@@ -197,22 +141,22 @@ export default async function MaintenancePage({
               <thead className="bg-gray-50">
                 <tr className="text-left text-xs font-medium tracking-wide text-gray-500 uppercase">
                   <th scope="col" className="px-4 py-3">
+                    Completed
+                  </th>
+                  <th scope="col" className="px-4 py-3">
                     Task
                   </th>
                   <th scope="col" className="px-4 py-3">
-                    Equipment
+                    Technician
                   </th>
                   <th scope="col" className="px-4 py-3">
-                    Assigned to
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Scheduled
+                    Work performed
                   </th>
                   <th scope="col" className="px-4 py-3">
                     Priority
                   </th>
                   <th scope="col" className="px-4 py-3">
-                    Status
+                    Parts
                   </th>
                   <th scope="col" className="px-4 py-3 text-right">
                     Actions
@@ -220,48 +164,44 @@ export default async function MaintenancePage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
-                {items.map((task) => (
-                  <tr key={task.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/maintenance/${task.id}`}
-                        className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
-                      >
-                        {task.title}
-                      </Link>
-                      {task.description ? (
-                        <p className="mt-0.5 line-clamp-1 max-w-xs text-xs text-gray-500">
-                          {task.description}
-                        </p>
-                      ) : null}
+                {items.map((record) => (
+                  <tr key={record.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">
+                      {formatCompletedDate(record.completedDate)}
                     </td>
                     <td className="px-4 py-3 text-gray-700">
-                      <Link
-                        href={`/equipment/${task.equipment.id}`}
-                        className="text-indigo-600 hover:text-indigo-700 hover:underline"
-                      >
-                        {task.equipment.name}
-                      </Link>
-                      <span className="text-gray-500">
-                        {' '}
-                        · {task.equipment.assetNumber}
-                      </span>
+                      {record.task ? (
+                        <Link
+                          href={`/maintenance/${record.task.id}`}
+                          className="text-indigo-600 hover:text-indigo-700 hover:underline"
+                        >
+                          {record.task.title}
+                        </Link>
+                      ) : (
+                        <span className="text-gray-500">
+                          Standalone record
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-700">
-                      {task.assignedUser ? task.assignedUser.name : '—'}
+                      {record.technician.name}
+                    </td>
+                    <td className="max-w-xs px-4 py-3 text-gray-700">
+                      <p className="line-clamp-1">{record.description}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      {record.task ? (
+                        <MaintenancePriorityBadge priority={record.task.priority} />
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-700">
-                      {formatScheduledDate(task.scheduledDate)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <MaintenancePriorityBadge priority={task.priority} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <MaintenanceStatusBadge status={task.status} />
+                      {record._count.partsUsed}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link
-                        href={`/maintenance/${task.id}`}
+                        href={`/maintenance/history/${record.id}`}
                         className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
                       >
                         View
