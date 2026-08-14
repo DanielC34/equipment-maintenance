@@ -123,3 +123,40 @@ export const maintenanceCompletionSchema = z.object({
 export type MaintenanceCompletionValues = z.infer<
   typeof maintenanceCompletionSchema
 >;
+
+export const maintenanceHistoryFilterSchema = z.object({
+  q: z.string().trim().max(200).catch(''),
+  equipmentId: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .catch(undefined),
+  technicianId: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .catch(undefined),
+  from: z
+    .string()
+    .trim()
+    .max(20)
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .catch(undefined),
+  to: z
+    .string()
+    .trim()
+    .max(20)
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .catch(undefined),
+  page: z.coerce.number().int().min(1).catch(1),
+});
+
+export type MaintenanceHistoryFilterValues = z.infer<
+  typeof maintenanceHistoryFilterSchema
+>;

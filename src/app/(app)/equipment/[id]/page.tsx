@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Pencil } from 'lucide-react';
+import { Pencil, History, FileClock } from 'lucide-react';
 import { PERMISSIONS, requirePermission, hasPermission } from '@/server/rbac';
 import { getEquipmentById } from '@/server/equipment';
+import { getEquipmentMaintenanceHistory } from '@/server/maintenance';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { SectionPlaceholder } from '@/components/section-placeholder';
@@ -42,6 +43,11 @@ export default async function EquipmentDetailPage({
   }
 
   const canEdit = hasPermission(session, PERMISSIONS.equipmentEdit);
+  const canViewHistory = hasPermission(session, PERMISSIONS.maintenanceView);
+
+  const history = canViewHistory
+    ? await getEquipmentMaintenanceHistory(equipment.id, 1)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -49,14 +55,24 @@ export default async function EquipmentDetailPage({
         title={equipment.name}
         description={`${equipment.assetNumber} · ${equipment.factory.name}`}
         actions={
-          canEdit ? (
-            <Link href={`/equipment/${equipment.id}/edit`}>
-              <Button variant="outline">
-                <Pencil aria-hidden />
-                Edit
-              </Button>
-            </Link>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            {canViewHistory ? (
+              <Link href={`/equipment/${equipment.id}/history`}>
+                <Button variant="outline">
+                  <History aria-hidden />
+                  Maintenance history
+                </Button>
+              </Link>
+            ) : null}
+            {canEdit ? (
+              <Link href={`/equipment/${equipment.id}/edit`}>
+                <Button variant="outline">
+                  <Pencil aria-hidden />
+                  Edit
+                </Button>
+              </Link>
+            ) : null}
+          </div>
         }
       />
 
@@ -140,12 +156,37 @@ export default async function EquipmentDetailPage({
           description="Planned maintenance tasks for this asset will be scheduled and reviewed here in the maintenance module."
           planned={['Preventive work orders', 'Overdue and upcoming views']}
         />
-        <SectionPlaceholder
-          badge="Future milestone"
-          title="Maintenance history"
-          description="Completed work and the technicians who performed it will be recorded against this asset."
-          planned={['Completed maintenance records', 'Parts used per record']}
-        />
+        {canViewHistory ? (
+          <Link
+            href={`/equipment/${equipment.id}/history`}
+            className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-6 transition-colors hover:bg-indigo-50"
+          >
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-700">
+                <FileClock aria-hidden className="size-3.5" />
+                Maintenance history
+              </span>
+              <span className="text-sm font-semibold text-indigo-700">
+                {history ? history.total : 0}
+              </span>
+            </div>
+            <h2 className="mt-3 text-base font-semibold text-gray-900">
+              View completed work
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              {history && history.total > 0
+                ? `${history.total} completed maintenance ${history.total === 1 ? 'record' : 'records'} for this asset — what was done, by whom, when, and which parts were used.`
+                : 'No completed maintenance recorded yet. Completed work on this asset will appear here.'}
+            </p>
+          </Link>
+        ) : (
+          <SectionPlaceholder
+            badge="Future milestone"
+            title="Maintenance history"
+            description="Completed work and the technicians who performed it will be recorded against this asset."
+            planned={['Completed maintenance records', 'Parts used per record']}
+          />
+        )}
         <SectionPlaceholder
           badge="Future milestone"
           title="Downtime history"

@@ -105,6 +105,9 @@ model MaintenanceRecord {
   createdAt     DateTime  @default(now())
 
   partsUsed PartUsed[]
+
+  @@index([completedDate])
+  @@index([equipmentId, completedDate])
 }
 
 model PartUsed {
