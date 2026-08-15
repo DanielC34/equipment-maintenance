@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Session } from 'next-auth';
 import { SignOutButton } from '@/components/sign-out-button';
 import { MobileNav } from '@/components/mobile-nav';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export function AppHeader({ session }: { session: Session }) {
   const { user } = session;
@@ -25,6 +26,7 @@ export function AppHeader({ session }: { session: Session }) {
             {user.role.replace(/_/g, ' ')}
           </p>
         </div>
+        <ThemeToggle />
         <SignOutButton />
       </div>
     </header>
