@@ -160,3 +160,80 @@ export const maintenanceHistoryFilterSchema = z.object({
 export type MaintenanceHistoryFilterValues = z.infer<
   typeof maintenanceHistoryFilterSchema
 >;
+
+export const DOWNTIME_STATUSES = ['OPEN', 'RESOLVED'] as const;
+
+export const DOWNTIME_REASONS = [
+  'MECHANICAL',
+  'ELECTRICAL',
+  'HYDRAULIC',
+  'PNEUMATIC',
+  'MATERIAL',
+  'OPERATOR_ERROR',
+  'QUALITY',
+  'CHANGEOVER',
+] as const;
+
+export const downtimeEventFormSchema = z.object({
+  equipmentId: z.string().min(1, { error: 'Select the equipment.' }),
+  startedAt: z
+    .string({ error: 'Select a start date and time.' })
+    .min(1, { error: 'Select a start date and time.' })
+    .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+      error: 'Enter a valid start date and time.',
+    }),
+  endedAt: z.string().refine(
+    (value) => value === '' || !Number.isNaN(new Date(value).getTime()),
+    { error: 'Enter a valid end date and time.' }
+  ),
+  reason: z.enum(DOWNTIME_REASONS, { error: 'Select a reason.' }),
+  notes: z.string().trim().max(2000).optional(),
+});
+
+export type DowntimeEventFormValues = z.infer<typeof downtimeEventFormSchema>;
+
+export const downtimeEventResolveSchema = z.object({
+  endedAt: z
+    .string({ error: 'Select an end date and time.' })
+    .min(1, { error: 'Select an end date and time.' })
+    .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+      error: 'Enter a valid end date and time.',
+    }),
+});
+
+export type DowntimeEventResolveValues = z.infer<
+  typeof downtimeEventResolveSchema
+>;
+
+export const downtimeFilterSchema = z.object({
+  q: z.string().trim().max(200).catch(''),
+  equipmentId: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .catch(undefined),
+  status: z
+    .enum(DOWNTIME_STATUSES)
+    .or(z.literal(''))
+    .transform((value) => (value === '' ? undefined : value))
+    .catch(undefined),
+  from: z
+    .string()
+    .trim()
+    .max(20)
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .catch(undefined),
+  to: z
+    .string()
+    .trim()
+    .max(20)
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .catch(undefined),
+  page: z.coerce.number().int().min(1).catch(1),
+});
+
+export type DowntimeFilterValues = z.infer<typeof downtimeFilterSchema>;

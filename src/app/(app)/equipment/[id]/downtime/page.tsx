@@ -1,32 +1,33 @@
 import Link from 'next/link';
-import { Inbox, Plus, Play } from 'lucide-react';
+import { notFound } from 'next/navigation';
+import { ArrowLeft, Inbox } from 'lucide-react';
+import { downtimeFilterSchema } from '@/lib/validations';
+import { PERMISSIONS, requirePermission } from '@/server/rbac';
 import {
-  DOWNTIME_STATUSES,
-  downtimeFilterSchema,
-  type DowntimeFilterValues,
-} from '@/lib/validations';
-import type { DowntimeStatus } from '@prisma/client';
-import { PERMISSIONS, requirePermission, hasPermission } from '@/server/rbac';
-import {
-  listDowntimeEvents,
+  getEquipmentDowntimeHistory,
   downtimeDurationMinutes,
   formatDowntimeDuration,
 } from '@/server/downtime';
-import { listEquipmentsForSelect } from '@/server/maintenance';
+import { getEquipmentById } from '@/server/equipment';
 import { PageHeader } from '@/components/page-header';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { DowntimeStatusBadge } from '@/components/downtime/downtime-status-badge';
 import { DowntimeReasonBadge } from '@/components/downtime/downtime-reason-badge';
 
-export const metadata = {
-  title: 'Downtime | EMMS',
-};
-
-const STATUS_LABELS: Record<DowntimeStatus, string> = {
-  OPEN: 'Open',
-  RESOLVED: 'Resolved',
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const equipment = await getEquipmentById(id);
+  return {
+    title: equipment
+      ? `${equipment.name} downtime | EMMS`
+      : 'Equipment downtime | EMMS',
+  };
+}
 
 const inputClass =
   'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
@@ -41,186 +42,99 @@ function formatDateTime(date: Date): string {
   }).format(date);
 }
 
-export default async function DowntimePage({
+export default async function EquipmentDowntimePage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const session = await requirePermission(PERMISSIONS.appView);
+  await requirePermission(PERMISSIONS.appView);
+
+  const { id } = await params;
+  const equipment = await getEquipmentById(id);
+  if (!equipment) {
+    notFound();
+  }
 
   const raw = await searchParams;
-  const filter: DowntimeFilterValues = downtimeFilterSchema.parse(raw);
-  const { q, equipmentId, status, from, to, page } = filter;
+  const filter = downtimeFilterSchema.parse(raw);
+  const { page, q } = filter;
 
-  const [downtime, equipments] = await Promise.all([
-    listDowntimeEvents({ q, equipmentId, status, from, to, page }),
-    listEquipmentsForSelect(),
-  ]);
+  const { items, total, pageSize, totalPages } =
+    await getEquipmentDowntimeHistory(id, page, q);
 
-  const { items, total, pageSize, totalPages } = downtime;
-  const canRecord = hasPermission(session, PERMISSIONS.downtimeRecord);
-  const hasFilters = Boolean(q || equipmentId || status || from || to);
-  const openCount = items.filter((event) => event.status === 'OPEN').length;
+  const hasFilters = Boolean(q);
   const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, total);
 
   function pageHref(target: number): string {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
-    if (equipmentId) params.set('equipmentId', equipmentId);
-    if (status) params.set('status', status);
-    if (from) params.set('from', from);
-    if (to) params.set('to', to);
     if (target > 1) params.set('page', String(target));
     const query = params.toString();
-    return query ? `/downtime?${query}` : '/downtime';
+    return query
+      ? `/equipment/${id}/downtime?${query}`
+      : `/equipment/${id}/downtime`;
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Downtime"
-        description={`${total} ${total === 1 ? 'event' : 'events'} recorded`}
+        title={`${equipment.name} — downtime`}
+        description={`${equipment.assetNumber} · ${total} ${total === 1 ? 'downtime event' : 'downtime events'} recorded`}
         actions={
-          canRecord ? (
-            <Link href="/downtime/new">
-              <Button>
-                <Plus aria-hidden />
-                Record downtime
-              </Button>
-            </Link>
-          ) : undefined
+          <Link href={`/equipment/${equipment.id}`}>
+            <Button variant="outline">
+              <ArrowLeft aria-hidden />
+              Back to equipment
+            </Button>
+          </Link>
         }
       />
 
       <form
         method="GET"
-        className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:flex-wrap sm:items-end"
+        className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-end"
       >
-        <div className="min-w-0 flex-1 sm:min-w-48">
+        <div className="min-w-0 flex-1">
           <label
             htmlFor="q"
             className="block text-sm font-medium text-gray-700"
           >
-            Search
+            Search this downtime
           </label>
           <input
             id="q"
             name="q"
             type="search"
             defaultValue={q}
-            placeholder="Equipment, asset tag, reporter, or notes"
+            placeholder="Reporter name or notes"
             className={`${inputClass} sm:mt-1`}
           />
         </div>
-        <div className="sm:min-w-40">
-          <label
-            htmlFor="equipmentId"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Equipment
-          </label>
-          <select
-            id="equipmentId"
-            name="equipmentId"
-            defaultValue={equipmentId ?? ''}
-            className={`${inputClass} sm:mt-1`}
-          >
-            <option value="">All equipment</option>
-            {equipments.map((equipment) => (
-              <option key={equipment.id} value={equipment.id}>
-                {equipment.name} · {equipment.assetNumber}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label
-            htmlFor="status"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Status
-          </label>
-          <select
-            id="status"
-            name="status"
-            defaultValue={status ?? ''}
-            className={`${inputClass} sm:mt-1`}
-          >
-            <option value="">All statuses</option>
-            {DOWNTIME_STATUSES.map((value) => (
-              <option key={value} value={value}>
-                {STATUS_LABELS[value]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label
-            htmlFor="from"
-            className="block text-sm font-medium text-gray-700"
-          >
-            From
-          </label>
-          <input
-            id="from"
-            name="from"
-            type="date"
-            defaultValue={from ?? ''}
-            className={`${inputClass} sm:mt-1`}
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="to"
-            className="block text-sm font-medium text-gray-700"
-          >
-            To
-          </label>
-          <input
-            id="to"
-            name="to"
-            type="date"
-            defaultValue={to ?? ''}
-            className={`${inputClass} sm:mt-1`}
-          />
-        </div>
-        <div className="flex gap-2">
-          <Button type="submit" variant="outline">
-            Search
-          </Button>
-          {hasFilters ? (
-            <Link href="/downtime">
-              <Button variant="ghost">Clear</Button>
-            </Link>
-          ) : null}
-        </div>
+        <Button type="submit" variant="outline">
+          Search
+        </Button>
+        {hasFilters ? (
+          <Link href={`/equipment/${equipment.id}/downtime`}>
+            <Button variant="ghost">Clear</Button>
+          </Link>
+        ) : null}
       </form>
-
-      {openCount > 0 && !hasFilters ? (
-        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          <Play aria-hidden className="size-4 shrink-0" />
-          <span>
-            {openCount} open {openCount === 1 ? 'event is' : 'events are'}{' '}
-            currently ongoing — resolved events record their end time.
-          </span>
-        </div>
-      ) : null}
 
       {items.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center">
           <Inbox aria-hidden className="size-8 text-gray-400" />
           <h2 className="text-base font-semibold text-gray-900">
             {hasFilters
-              ? 'No downtime events match your filters'
-              : 'No downtime events recorded yet'}
+              ? 'No downtime events match your search'
+              : 'No downtime events recorded for this equipment yet'}
           </h2>
           <p className="max-w-md text-sm text-gray-600">
             {hasFilters
-              ? 'Try a different search term or clear the filters.'
-              : canRecord
-                ? 'Record the first downtime event to start tracking production loss.'
-                : 'Downtime events recorded by an operator or administrator will appear here.'}
+              ? 'Try a different search term or clear the search.'
+              : 'Downtime events for this asset will appear here with the cause, duration, and reporter.'}
           </p>
         </div>
       ) : (
@@ -231,9 +145,6 @@ export default async function DowntimePage({
                 <tr className="text-left text-xs font-medium tracking-wide text-gray-500 uppercase">
                   <th scope="col" className="px-4 py-3">
                     Started
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Equipment
                   </th>
                   <th scope="col" className="px-4 py-3">
                     Reason
@@ -260,18 +171,6 @@ export default async function DowntimePage({
                   <tr key={event.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 whitespace-nowrap text-gray-700">
                       {formatDateTime(event.startedAt)}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      <Link
-                        href={`/equipment/${event.equipment.id}`}
-                        className="text-indigo-600 hover:text-indigo-700 hover:underline"
-                      >
-                        {event.equipment.name}
-                      </Link>
-                      <span className="text-gray-500">
-                        {' '}
-                        · {event.equipment.assetNumber}
-                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <DowntimeReasonBadge reason={event.reason} />

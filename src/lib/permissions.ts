@@ -9,6 +9,7 @@ export const PERMISSIONS = {
   maintenanceSchedule: 'maintenance:schedule',
   maintenanceComplete: 'maintenance:complete',
   downtimeRecord: 'downtime:record',
+  downtimeResolve: 'downtime:resolve',
   reportsView: 'reports:view',
   usersManage: 'users:manage',
 } as const
@@ -29,6 +30,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     PERMISSIONS.maintenanceSchedule,
     PERMISSIONS.maintenanceComplete,
     PERMISSIONS.downtimeRecord,
+    PERMISSIONS.downtimeResolve,
     PERMISSIONS.reportsView,
     PERMISSIONS.usersManage,
   ],
@@ -45,6 +47,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     ...APP_BASE,
     PERMISSIONS.maintenanceView,
     PERMISSIONS.maintenanceComplete,
+    PERMISSIONS.downtimeResolve,
   ],
   OPERATOR: [...APP_BASE, PERMISSIONS.downtimeRecord],
   PLANT_MANAGER: [...APP_BASE, PERMISSIONS.reportsView],

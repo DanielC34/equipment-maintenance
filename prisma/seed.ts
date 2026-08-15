@@ -5,6 +5,7 @@ import {
   EquipmentStatus,
   MaintenanceStatus,
   Priority,
+  DowntimeReason,
 } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcryptjs';
@@ -20,6 +21,7 @@ const DEMO_PASSWORD = 'password123';
 async function main() {
   console.log('Starting database seed...');
 
+  await prisma.downtimeEvent.deleteMany();
   await prisma.partUsed.deleteMany();
   await prisma.maintenanceRecord.deleteMany();
   await prisma.maintenanceTask.deleteMany();
@@ -64,7 +66,7 @@ async function main() {
     },
   });
 
-  await prisma.user.create({
+  const operator = await prisma.user.create({
     data: {
       name: 'Operator User',
       email: 'operator@emms.dev',
@@ -130,7 +132,7 @@ async function main() {
     },
   });
 
-  await prisma.equipment.create({
+  const equipment4 = await prisma.equipment.create({
     data: {
       name: 'Hydraulic Press',
       assetNumber: 'HPR-004',
@@ -206,6 +208,47 @@ async function main() {
     },
   });
   console.log('Created 2 maintenance records.');
+
+  await prisma.downtimeEvent.create({
+    data: {
+      equipmentId: equipment4.id,
+      reportedById: operator.id,
+      reason: DowntimeReason.HYDRAULIC,
+      startedAt: new Date(new Date().setDate(new Date().getDate() - 3)),
+      endedAt: new Date(
+        new Date(new Date().setDate(new Date().getDate() - 3)).getTime() +
+          95 * 60 * 1000
+      ),
+      status: 'RESOLVED',
+      notes: 'Hydraulic pressure loss on the stamp line; pump seals replaced.',
+    },
+  });
+
+  await prisma.downtimeEvent.create({
+    data: {
+      equipmentId: equipment1.id,
+      reportedById: operator.id,
+      reason: DowntimeReason.QUALITY,
+      startedAt: new Date(new Date().setDate(new Date().getDate() - 1)),
+      endedAt: new Date(
+        new Date(new Date().setDate(new Date().getDate() - 1)).getTime() +
+          35 * 60 * 1000
+      ),
+      status: 'RESOLVED',
+      notes: 'Out-of-tolerance parts; halted for recalibration.',
+    },
+  });
+
+  await prisma.downtimeEvent.create({
+    data: {
+      equipmentId: equipment4.id,
+      reportedById: operator.id,
+      reason: DowntimeReason.HYDRAULIC,
+      startedAt: new Date(Date.now() - 20 * 60 * 1000),
+      notes: 'Pressure dropping again; press stopped pending inspection.',
+    },
+  });
+  console.log('Created 3 downtime events.');
 
   console.log(
     'Created admin and supervisor with known roles:',
