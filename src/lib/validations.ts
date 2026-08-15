@@ -237,3 +237,22 @@ export const downtimeFilterSchema = z.object({
 });
 
 export type DowntimeFilterValues = z.infer<typeof downtimeFilterSchema>;
+
+export const reportFilterSchema = z.object({
+  from: z
+    .string()
+    .trim()
+    .max(20)
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .catch(undefined),
+  to: z
+    .string()
+    .trim()
+    .max(20)
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .catch(undefined),
+});
+
+export type ReportFilterValues = z.infer<typeof reportFilterSchema>;

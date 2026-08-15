@@ -42,7 +42,7 @@ export function MobileNav({ session }: { session: Session }) {
       {open ? (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div
-            className="absolute inset-0 bg-gray-900/50"
+            className="absolute inset-0 bg-black/50"
             aria-hidden="true"
             onClick={() => setOpen(false)}
           />

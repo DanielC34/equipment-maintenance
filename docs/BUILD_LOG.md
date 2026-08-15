@@ -801,3 +801,81 @@ Runtime verification against the running PostgreSQL container (production build 
 ### Next milestone
 
 - **Activity/audit log (Milestone 10 equivalent)**: record who did what (created/resolved downtime, plus the earlier task/record/equipment actions) as an audit trail; revisit downtime analytics (MTTR/MTBF) once a meaningful window of events exists.
+
+---
+
+## Milestone 10 — Dashboards & Operational Reporting
+
+**Goal**: replace the dashboard/reports placeholders with the V1 analytics surface — an all-roles `/dashboard` summarizing equipment, maintenance, and downtime from data that already exists, and a permission-gated `/reports` page with a limited in-app reporting subset (maintenance completions + downtime summaries). No schema changes and no new permissions: per PRD §11 the V1 scope deliberately excludes file exports, charts requiring a dedicated analytics model, production loss (no output-rate field), and MTBF/availability (no operating-hours data). Session 11 defines who sees what: **everyone** views the dashboard; reports are Admin/Supervisor/Plant Manager/Reliability Engineer only.
+
+### Requirements recap (source)
+
+- PRD **FR-023** (dashboard after sign-in), **FR-024** (equipment + maintenance summary metrics), **FR-025** (overdue maintenance), **FR-026** (equipment summary); **US-015** (supervisor views the dashboard and jumps into relevant views).
+- Roadmap **Phase 7** DoD: open tasks, equipment status, overdue work, and downtime visible (incl. open events, MTTR, downtime by reason during a period).
+- Learning handbook Sessions 7 & 12: dashboard metrics = open downtime, total downtime, MTTR, overdue, upcoming, equipment status counts.
+
+### Scope guardrails (what was NOT built)
+
+- **No new permissions or schema changes** — dashboard keeps `requireAuth()` (Session 11: everyone), reports keeps the existing `reportsView`.
+- **Production loss / OEE** excluded — the schema has no output-rate or production-loss field.
+- **MTBF / availability** excluded — there is no operating-hours model to anchor them to.
+- **Charts & file exports** excluded — PRD §11 and the roadmap put them after the MVP; the report page is an in-app summary with date-range filters.
+
+### Data access (`src/server/dashboard.ts`, `src/server/reports.ts`)
+
+- **`src/server/dashboard.ts`** — read-only aggregation helpers:
+  - `getEquipmentStatusCounts` / `getEquipmentTotal` — equipment counts by status + total.
+  - `getMaintenanceStatusCounts` / `getOverdueTaskCount` — task counts by status; overdue = SCHEDULED/IN_PROGRESS with `scheduledDate < now`.
+  - `getOpenDowntimeCount` / `getOpenDowntimeEvents` / `getRecentDowntimeEvents` / `getDowntimeByReason` — open count, open list, newest-first list, per-reason counts.
+  - `getUpcomingTasks` (SCHEDULED + future, soonest first, `DASHBOARD_LIST_LIMIT = 5`) and `getRecentMaintenanceRecords` (newest 5).
+  - `getDowntimeTotals` — resolved count, total resolved minutes, and **MTTR** = `Math.round(totalMinutes / resolvedCount)` (all computed from `(endedAt − startedAt)`; never stored; `null` when no resolved events).
+  - `getDashboardOverview` — the one parallel `Promise.all` the dashboard page calls.
+- **`src/server/reports.ts`** — period-filtered aggregates (both accept optional `from`/`to`):
+  - `getMaintenanceReport` — counts of `MaintenanceRecord` in the period + `byTechnician` and `byEquipment` breakdowns + total parts used (via `PartUsed` aggregate joined by `completedDate`).
+  - `getDowntimeReport` — total/open/resolved counts, total resolved minutes, and per-reason `{count, minutes}` (minutes summed only from resolved events).
+  - Date range handling matches the existing `listMaintenanceHistory` semantics: `to` clamped to end-of-day.
+
+### Validation (`src/lib/validations.ts`)
+
+- **`reportFilterSchema`** — optional `from`/`to` date strings (empty → undefined, catch → undefined), used by `/reports`.
+
+### UI / routes
+
+- **`/dashboard`** (`src/app/(app)/dashboard/page.tsx`) — replaces the placeholder; `requireAuth()` (all roles):
+  - Welcome header → 4 KPI link-cards (Equipment total, Overdue maintenance, Open downtime, Avg. repair time) with alert styling when overdue/open counts are > 0; each card deep-links into the related list.
+  - Equipment status + Maintenance status breakdown panels; Upcoming work (link to the task, priority badge, date) and Recent maintenance (record link, technician, completed date) lists; Open downtime (link to event detail, reason/status badges, "since" timestamp) and Downtime by reason panels; full Recent downtime list with per-event computed duration.
+  - Every list links into the existing detail/list routes (US-015 "jump into relevant views"); empty states with CTA buttons per section.
+- **`/reports`** (`src/app/(app)/reports/page.tsx`) — replaces the placeholder; `requirePermission(PERMISSIONS.reportsView)`:
+  - GET date-range form (`from`/`to` + Apply/Clear) preserving the filter in the URL.
+  - Completed-maintenance panel: total records, parts used, by-technician and by-equipment breakdowns.
+  - Downtime panel: total events, resolved/open counts, total downtime (formatted), MTTR, and by-reason breakdown with counts + total minutes.
+- **Server-action count unchanged** — dashboard/reports are pure server-rendered reads over the existing data layer; no new actions.
+
+### Verification
+
+`npm run lint`, `npx tsc --noEmit`, and `npm run build` all pass (21 routes). Two-phase runtime verification:
+
+- **Data layer** (`scripts/verify-m10.ts` via `tsx`, against the live DB): 24/24 assertions passed — equipment total 4, status counts `{OPERATIONAL: 2, UNDER_MAINTENANCE: 1, OFFLINE: 1}`, maintenance counts `{SCHEDULED: 2, IN_PROGRESS: 1, COMPLETED: 0, CANCELLED: 0}`, overdue 1, open downtime 1, downtime totals (resolved 2, MTTR 65), upcoming 2, recent records 2, open events 1, recent events 3, by-reason `[HYDRAULIC ×2, QUALITY ×1]`; maintenance report (2 records, both by the same technician), downtime report (3 events, 1 open / 2 resolved, by-reason minutes sum 130); date-filtered maintenance returns 0 for a future window; `to` filter includes both resolved events (130 minutes).
+- **Runtime suite** (`m10-test.ps1` against the production build with real Auth.js cookie jars): 38/38 assertions passed, including:
+  - Dashboard returns 200 for **all six roles** (admin/supervisor/technician/operator/manager/reliability) and renders every section (KPIs, equipment status, maintenance status, upcoming, recent records, open downtime, by reason, recent events). No placeholder sections remain.
+  - Reports 200 for admin/supervisor/manager/reliability; technician and operator are **redirected (307) to `/unauthorized`** — the correct `requirePermission` boundary.
+  - Reports content: completed-maintenance panel (2 records), technician/equipment/reason breakdowns, filter form; date filter works (future window → empty state; current month → data; supervisor sees filtered reports).
+  - Anon gets 307 → `/login` on both pages; regression sweep shows equipment/maintenance/history/downtime/admin pages unaffected.
+- Post-run `psql`: DB back to exactly the 3 seed downtime events (1 OPEN / 2 RESOLVED), 4 equipment, 3 tasks, 2 records; no probe leftovers.
+
+### Design decisions
+
+- **Aggregation over persistence**: every dashboard/report number is computed on demand from the event/task records (consistent with the analytics chapter — the DB stores raw events, metrics are derived at read time).
+- **Read-only metrics, shared formatters**: durations reuse `downtimeDurationMinutes` / `formatDowntimeDuration` from `src/server/downtime.ts` so MTTR, list rows, and the reports panels render identically.
+- **One page, one data call**: the dashboard page fetches everything through `getDashboardOverview()` (parallel queries), keeping the view layer declarative; the report page fetches the maintenance and downtime reports in parallel.
+- **Filters round-trip in the URL** and reuse the established list-page semantics (clamped end-of-day, optional empty→undefined), so "this period" always means the same thing across maintenance history, downtime, and reports.
+
+### Known limitations (carried forward)
+
+- Metrics only reflect data that exists: MTTR, MTBF/availability, and production loss require more accrued history (and, for the last two, schema fields that are intentionally absent from the MVP).
+- Dashboard and reports are live aggregations — no precomputed/cached metrics (the Redis-style caching discussed in the handbook is a scale-after-MVP concern).
+- Reports stay in-app only: no CSV/XLSX export, no scheduled report emails (PRD §11 defers exports/analytics).
+
+### Next milestone
+
+- **Activity/audit log**: record who did what (created/resolved downtime, plus the earlier task/record/equipment actions) as an audit trail; revisit dashboard scope (MTBF/availability) once a meaningful window of events exists.
