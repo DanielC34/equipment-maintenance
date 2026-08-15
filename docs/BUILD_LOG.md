@@ -700,3 +700,104 @@ Runtime verification against the running PostgreSQL container (production build 
 ### Next milestone
 
 - **Activity/audit log (Milestone 9)**: record who did what (created/started/completed/edited) against tasks, records, equipment, and users as a `MaintenanceAuditLog`-style table.
+
+---
+
+## Milestone 9 — Downtime Tracking
+
+**Goal**: record, view, search, filter, paginate, and inspect equipment downtime events — plus an open→resolved lifecycle so ongoing events can be recorded and later closed with an end time. Global `/downtime` list, `/downtime/new` record form, read-only `/downtime/[id]` detail, and an equipment-scoped `/equipment/[id]/downtime` history. No dashboards/MTTR/MTBF/analytics (per roadmap, those depend on accrued data). Two separate write permissions: **`downtimeRecord`** (report) and **`downtimeResolve`** (resolve) — aligning with the roadmap Phase 6 expected outcome *"Operators can report downtime and technicians can resolve it"*; view rides on the existing `appView`/nav entry.
+
+### Schema / enums
+
+- **`DowntimeStatus`** = `OPEN | RESOLVED`.
+- **`DowntimeReason`** = the eight standardized categories from the learning handbook (Session 2's reason-code list): `MECHANICAL | ELECTRICAL | HYDRAULIC | PNEUMATIC | MATERIAL | OPERATOR_ERROR | QUALITY | CHANGEOVER`.
+- **`DowntimeEvent`** model:
+  - `id`, `equipmentId` (FK), `reportedById` (FK → User), `startedAt`, `endedAt?` (nullable — active downtime is a documented lifecycle state, not an omission), `status @default("OPEN")`, `reason`, `notes?`, `createdAt`, `updatedAt`.
+  - Cover indexes `@@index([equipmentId, startedAt])` and `@@index([startedAt])` for the ordering/equipment-filter queries.
+- `User.reportedDowntime` and `Equipment.downtimeEvents` back-relations added.
+- Migration `20260815000000_add_downtime_event` created manually via `prisma migrate diff`, made BOM-free, applied with `prisma migrate deploy`, `prisma generate` re-ran. Verified in `psql`: columns, both indexes, and the enum labels.
+
+### Data access (`src/server/downtime.ts`)
+
+- `DOWNTIME_PAGE_SIZE = 20`.
+- **`listDowntimeEvents(filter)`** — the single query behind the global and equipment-scoped pages:
+  - Optional `q` (OR across `equipment.name`/`equipment.assetNumber`, `reportedBy.name`, `notes`, case-insensitive contains).
+  - Optional `equipmentId`, `status`, and `from`/`to` range on `startedAt` (`to` clamped to end-of-day `23:59:59.999`).
+  - Sorted `startedAt` desc → `createdAt` desc (stable newest-first).
+  - Includes `equipment` (id/name/assetNumber) and `reportedBy` (id/name/email/role); returns `{ items, total, page, pageSize, totalPages }`.
+- **`getDowntimeEventById(id)`** — detail include: equipment (id/name/assetNumber/location/status/factory) and reporter (id/name/email/role); `null` for unknown ids.
+- **`getEquipmentDowntimeHistory(equipmentId, page, q)`** — wrapper over `listDowntimeEvents` (also returns the total used by the equipment detail card).
+- **`downtimeDurationMinutes(event)`** — computed, never stored: `Math.max(0, Math.round((endedAt − startedAt) / 60000))`; `null` while OPEN. **`formatDowntimeDuration`** renders it as `"1h 35m"` / `"45m"` / `"Ongoing"` consistently (no stored duration by design).
+
+### Validation (`src/lib/validations.ts`)
+
+- **`downtimeEventFormSchema`**: `equipmentId` required; `startedAt` required valid datetime; **`endedAt` is a required string** that must be empty OR a valid datetime — the empty-string opt-in is what records ongoing downtime (this plain-string shape is what keeps the zodResolver/react-hook-form typing happy); `reason` enum; `notes` trimmed ≤2000.
+- **`downtimeEventResolveSchema`**: `endedAt` required valid datetime (resolving always requires an end time).
+- **`downtimeFilterSchema`**: `q` trimmed ≤200 (catch → ''); optional `equipmentId`/`status`/`from`/`to` (empty → undefined, catch → undefined); `page` coerced int min 1 catch 1.
+
+### Server actions (`src/server/actions/downtime.ts`)
+
+- **`recordDowntimeEvent(values)`** — requires `PERMISSIONS.downtimeRecord`:
+  - Server-side re-validation; field errors mapped back to the form.
+  - Rejects `endedAt ≤ startedAt` ("End date/time must be after the start date/time.").
+  - Verifies the selected equipment still exists (rejects with a reload hint otherwise).
+  - Creates the event with **`reportedById` taken from the session user** (never the client); `status` derived: `RESOLVED` when an end time was supplied, otherwise `OPEN`; `notes` trimmed → null.
+  - Revalidates `/downtime` + `/equipment`, then `redirect()`s to `/downtime/{id}`.
+- **`resolveDowntimeEvent(id, values)`** — requires **`PERMISSIONS.downtimeResolve`** (separate from recording):
+  - Rejects unknown events ("no longer exists"), already-resolved events ("has already been resolved"), and `endedAt ≤ startedAt`; otherwise sets `endedAt` + `status: RESOLVED`, revalidates (incl. the detail path), returns `{ ok: true }`.
+
+### UI / routes
+
+- **`/downtime`** (`src/app/(app)/downtime/page.tsx`) — replaces the placeholder:
+  - `requirePermission(PERMISSIONS.appView)`; "Record downtime" button shown only to `downtimeRecord` holders.
+  - GET filter form: search box, equipment dropdown (`name · assetNumber`), status dropdown, `from`/`to` dates, Search + Clear; query params round-trip through pagination links.
+  - Amber strip when open events exist ("N open events are currently ongoing…").
+  - Table: Started, Equipment (link + asset tag), Reason badge, Duration, Reported by, Status badge, Ended, View.
+  - Pagination (Previous/Next, "Showing x–y of N"), last-page clamp; empty states for "no events recorded yet" vs "…match your filters".
+- **`/downtime/new`** (`src/app/(app)/downtime/new/page.tsx`) — `requirePermission(PERMISSIONS.downtimeRecord)`; `DowntimeForm` client component (react-hook-form + zodResolver, datetime-local start/end with "leave empty for ongoing downtime" hint, reason select with friendly labels, notes, action-error banner).
+- **`/downtime/[id]`** (`src/app/(app)/downtime/[id]/page.tsx`) — read-only detail; `notFound()` for unknown ids:
+  - Status/duration (with minute count for long events)/started/ended/reason/event-id fields, notes, Equipment card (link back), Reporter card.
+  - For `OPEN` events + **`downtimeResolve`** holders: a "Resolve this event" panel with `DowntimeResolveForm` (endedAt → `router.refresh()` on success). No edit/delete controls.
+- **`/equipment/[id]/downtime`** (`src/app/(app)/equipment/[id]/downtime/page.tsx`) — equipment-scoped downtime (search box + pagination; same table, plus equipment name in the header; empty state "No downtime events recorded for this equipment yet").
+- **Equipment detail** (`src/app/(app)/equipment/[id]/page.tsx`): replaced the Downtime SectionPlaceholder with a real amber card — live event count (from `getEquipmentDowntimeHistory(id, 1)`) + link to `/downtime`.
+- **Badge components**: `downtime-status-badge` (amber OPEN / emerald RESOLVED) and `downtime-reason-badge` (per-reason color + friendly label).
+- **Seed** (`prisma/seed.ts`): wiped before re-seed (new table added to the deleteMany cascade) and 3 events added against seeded equipment/reporter: HPR-004 hyraulic-pressure loss (RESOLVED, 95 min), CNC-001 quality halt (RESOLVED, 35 min), HPR-004 ongoing hydraulic (OPEN — matches its `OFFLINE` status).
+
+### Design decisions & mechanics
+
+- **Status is authoritative, `endedAt` drives it**: `OPEN`+null end / `RESOLVED`+set end, and the seed sets `status` explicitly (the default alone would leave ended events `OPEN`).
+- **Duration is computed, never stored** — avoids a denormalized field that could drift from (start, end); formatting is shared via `formatDowntimeDuration`.
+- **Search corpus** covers equipment name/asset tag, reporter name, and notes (list rows don't render notes, so search-by-notes is verified by result counts, not text matching).
+- **RBAC is split by role**: `downtimeRecord` (report) → OPERATOR + ADMINISTRATOR; `downtimeResolve` (resolve) → TECHNICIAN + ADMINISTRATOR. Matching the roadmap Phase 6 flow, *operators report downtime and technicians/engineers resolve it*; a role without `downtimeResolve` is rejected server-side even when dispatching the resolve action directly. No other role (SUPERVISOR, PLANT_MANAGER, RELIABILITY_ENGINEER) carries either downtime write permission.
+- The empty-`endedAt` string is the client contract for "ongoing" (avoids optional-field typing friction in react-hook-form); the action converts '' → null before creation.
+
+### Verification
+
+`npm run lint`, `npx tsc --noEmit`, and `npm run build` all pass (20 routes, including the four new downtime routes). Runtime suite (`m9-test.ps1`) ran against the production build (`next start`) with real Auth.js cookie jars (admin/operator/technician) and real Server-Action IDs from `server-reference-manifest.json`. **All assertions passed**, including:
+
+- List loads with the 3 seed events, count 3, open banner present, "1h 35m" duration, Open/Resolved badges, reporter shown.
+- Equipment filter (HPR → 2) and status filter (RESOLVED → 2, banner suppressed when filtered).
+- Search by notes (`out-of-tolerance` → 1), asset tag (`CNC-001` → 1), reporter name (`operator` → 3); no-match shows the filter empty state.
+- Open detail shows the resolve form + "Ongoing"; resolved detail hides it, shows 35m, equipment link, reporter email, factory; invalid id renders the 404 boundary.
+- **Record action (operator)**: creates RESOLVED/OPERATOR_ERROR event with reporter = session user and the right equipment; ongoing record (empty end) lands as OPEN + null `endedAt`.
+- **Resolve action**: end ≤ start rejected (stays OPEN); valid resolve sets RESOLVED + non-null end; second resolve rejected ("already been resolved").
+- Create validation: end ≤ start and invalid reason rejected, nothing persisted.
+- Unknown equipment rejected ("no longer exists").
+- RBAC (corrected split): operator record attempt succeeds; operator resolve attempt rejected server-side (no `downtimeResolve`); technician resolve attempt succeeds; technician record attempt rejected (no `downtimeRecord`); a role without `downtimeResolve` (operator) cannot dispatch the resolve action. Operator can open `/downtime/new`; technician sees the resolve panel on OPEN events but not the "Record downtime" button.
+- Equipment-scoped pages: HPR → 2 events; robot page shows only its own event and excludes hydraulic/cnc; equipment detail card shows the live count and 1-event text.
+- Pagination: 22 probe events → page 1 = 20 rows, page 2 = 2 rows, next link on page 1, no page 3, probes fully cleaned afterward (0 remain; DB back to exactly 3 seed rows).
+- Anon redirected to login; no edit/delete/form on detail; duration in DB matches ended − started (≈1h and ≈45m).
+- Post-run `psql`: exactly 3 seed events (1 OPEN / 2 RESOLVED), zero M9/probe leftovers; EMMS Postgres (port 5433) and Redis healthy.
+
+### Known limitations
+
+- **Permission split applied post-M9** (requirements correction): downtime reporting (`downtimeRecord`) and resolution (`downtimeResolve`) were originally fused under `downtimeRecord`; a follow-up aligned the implementation with roadmap Phase 6 ("Operators can report downtime and technicians can resolve it") by adding the separate `downtimeResolve` permission — OPERATOR keeps record-only, TECHNICIAN gained resolve-only, ADMINISTRATOR holds both. No schema change; only permission matrix, UI gate, and action authorization.
+- **No editing/deleting events** — record + resolve only, by design (history shouldn't be rewritten).
+- **No analytics** (MTTR/MTBF/availability dashboards) — roadmap Phase 6 cites these as later work once downtime data accrues.
+- No `/downtime/new` link from the equipment detail card / equipment-scoped page (events are created from the global record form).
+- Streaming keeps HTTP 200 on the 404 boundary for invalid ids; tests assert on body content (established Next.js behavior noted in M8).
+- Postgres now listens on host port 5433 (the `dealbridge_db` container from the unrelated `dealbridgecrm` project occupies 5432); `docker-compose.yml` is back to `'5432:5432'`, so a fresh `docker compose up -d` would try 5432 again — the running container keeps 5433 until recreated.
+
+### Next milestone
+
+- **Activity/audit log (Milestone 10 equivalent)**: record who did what (created/resolved downtime, plus the earlier task/record/equipment actions) as an audit trail; revisit downtime analytics (MTTR/MTBF) once a meaningful window of events exists.

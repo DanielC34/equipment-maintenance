@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Pencil, History, FileClock } from 'lucide-react';
+import { Pencil, History, FileClock, TriangleAlert } from 'lucide-react';
 import { PERMISSIONS, requirePermission, hasPermission } from '@/server/rbac';
 import { getEquipmentById } from '@/server/equipment';
 import { getEquipmentMaintenanceHistory } from '@/server/maintenance';
+import { getEquipmentDowntimeHistory } from '@/server/downtime';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { SectionPlaceholder } from '@/components/section-placeholder';
@@ -48,6 +49,9 @@ export default async function EquipmentDetailPage({
   const history = canViewHistory
     ? await getEquipmentMaintenanceHistory(equipment.id, 1)
     : null;
+
+  const downtimeHistory = await getEquipmentDowntimeHistory(equipment.id, 1);
+  const downtimeCount = downtimeHistory.total;
 
   return (
     <div className="space-y-6">
@@ -187,12 +191,28 @@ export default async function EquipmentDetailPage({
             planned={['Completed maintenance records', 'Parts used per record']}
           />
         )}
-        <SectionPlaceholder
-          badge="Future milestone"
-          title="Downtime history"
-          description="Downtime events and their causes will be linked to this asset for reliability analysis."
-          planned={['Downtime events and reasons', 'Recovery time']}
-        />
+        <Link
+          href={`/equipment/${equipment.id}/downtime`}
+          className="rounded-xl border border-amber-200 bg-amber-50/50 p-6 transition-colors hover:bg-amber-50"
+        >
+          <div className="flex items-center justify-between">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700">
+              <TriangleAlert aria-hidden className="size-3.5" />
+              Downtime events
+            </span>
+            <span className="text-sm font-semibold text-amber-700">
+              {downtimeCount}
+            </span>
+          </div>
+          <h2 className="mt-3 text-base font-semibold text-gray-900">
+            View downtime history
+          </h2>
+          <p className="mt-1 text-sm text-gray-600">
+            {downtimeCount > 0
+              ? `${downtimeCount} downtime ${downtimeCount === 1 ? 'event' : 'events'} recorded for this asset — when it stopped, why, and for how long.`
+              : 'No downtime events recorded yet. Events showing what stopped this asset and why will appear here.'}
+          </p>
+        </Link>
         <SectionPlaceholder
           badge="Future milestone"
           title="Equipment performance"
