@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
 export const loginSchema = z.object({
-  email: z.email({ error: 'Enter a valid email address.' }).trim(),
+  email: z
+    .string()
+    .trim()
+    .pipe(z.email({ error: 'Enter a valid email address.' })),
   password: z.string().min(1, { error: 'Password is required.' }),
 });
 
@@ -72,7 +75,11 @@ export const maintenanceTaskFormSchema = z.object({
     .min(1, { error: 'Select a scheduled date.' })
     .refine((value) => !Number.isNaN(new Date(value).getTime()), {
       error: 'Enter a valid date and time.',
-    }),
+    })
+    .refine((value) => {
+      const time = new Date(value).getTime();
+      return Number.isNaN(time) || time >= Date.now();
+    }, { error: 'Scheduled date cannot be in the past.' }),
   priority: z.enum(PRIORITIES, { error: 'Priority is required.' }),
 });
 
@@ -174,21 +181,33 @@ export const DOWNTIME_REASONS = [
   'CHANGEOVER',
 ] as const;
 
-export const downtimeEventFormSchema = z.object({
-  equipmentId: z.string().min(1, { error: 'Select the equipment.' }),
-  startedAt: z
-    .string({ error: 'Select a start date and time.' })
-    .min(1, { error: 'Select a start date and time.' })
-    .refine((value) => !Number.isNaN(new Date(value).getTime()), {
-      error: 'Enter a valid start date and time.',
-    }),
-  endedAt: z.string().refine(
-    (value) => value === '' || !Number.isNaN(new Date(value).getTime()),
-    { error: 'Enter a valid end date and time.' }
-  ),
-  reason: z.enum(DOWNTIME_REASONS, { error: 'Select a reason.' }),
-  notes: z.string().trim().max(2000).optional(),
-});
+export const downtimeEventFormSchema = z
+  .object({
+    equipmentId: z.string().min(1, { error: 'Select the equipment.' }),
+    startedAt: z
+      .string({ error: 'Select a start date and time.' })
+      .min(1, { error: 'Select a start date and time.' })
+      .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+        error: 'Enter a valid start date and time.',
+      }),
+    endedAt: z.string().refine(
+      (value) => value === '' || !Number.isNaN(new Date(value).getTime()),
+      { error: 'Enter a valid end date and time.' }
+    ),
+    reason: z.enum(DOWNTIME_REASONS, { error: 'Select a reason.' }),
+    notes: z.string().trim().max(2000).optional(),
+  })
+  .superRefine((values, ctx) => {
+    const started = new Date(values.startedAt).getTime();
+    const ended = values.endedAt ? new Date(values.endedAt).getTime() : NaN;
+    if (!Number.isNaN(started) && !Number.isNaN(ended) && ended <= started) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['endedAt'],
+        message: 'Must be after the start time.',
+      });
+    }
+  });
 
 export type DowntimeEventFormValues = z.infer<typeof downtimeEventFormSchema>;
 

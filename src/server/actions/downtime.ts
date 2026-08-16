@@ -43,6 +43,15 @@ export async function recordDowntimeEvent(
 
   const parsed = downtimeEventFormSchema.safeParse(values);
   if (!parsed.success) {
+    const crossedTimes = parsed.error.issues.some(
+      (issue) =>
+        issue.path.length === 1 &&
+        issue.path[0] === 'endedAt' &&
+        issue.message === 'Must be after the start time.'
+    );
+    if (crossedTimes) {
+      return crossedTimesError({ endedAt: 'Must be after the start time.' });
+    }
     return {
       ok: false,
       error: 'Check the highlighted fields and try again.',
@@ -53,10 +62,6 @@ export async function recordDowntimeEvent(
   const data = parsed.data;
   const startedAt = new Date(data.startedAt);
   const endedAt = data.endedAt ? new Date(data.endedAt) : null;
-
-  if (endedAt && endedAt.getTime() <= startedAt.getTime()) {
-    return crossedTimesError({ endedAt: 'Must be after the start time.' });
-  }
 
   const equipment = await prisma.equipment.findUnique({
     where: { id: data.equipmentId },

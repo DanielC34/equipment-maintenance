@@ -60,3 +60,13 @@ export function roleHasPermission(
 ): boolean {
   return ROLE_PERMISSIONS[role].includes(permission)
 }
+
+export function hasPermission(
+  session: { user?: { id?: string; role?: Role } } | null,
+  permission: Permission,
+): boolean {
+  if (!session?.user?.role) {
+    return false
+  }
+  return roleHasPermission(session.user.role, permission)
+}
