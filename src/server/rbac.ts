@@ -2,11 +2,7 @@ import { redirect } from 'next/navigation'
 import type { Session } from 'next-auth'
 import type { Role } from '@prisma/client'
 import { getCurrentSession } from '@/auth'
-import {
-  PERMISSIONS,
-  roleHasPermission,
-  type Permission,
-} from '@/lib/permissions'
+import { PERMISSIONS, hasPermission, type Permission } from '@/lib/permissions'
 
 export async function requireAuth(): Promise<Session> {
   const session = await getCurrentSession()
@@ -34,15 +30,5 @@ export async function requirePermission(
   return session
 }
 
-export function hasPermission(
-  session: Session | null,
-  permission: Permission,
-): boolean {
-  if (!session?.user?.role) {
-    return false
-  }
-  return roleHasPermission(session.user.role, permission)
-}
-
-export { PERMISSIONS }
+export { PERMISSIONS, hasPermission }
 export type { Permission }

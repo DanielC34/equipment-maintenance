@@ -7,7 +7,7 @@ export interface ReportFilter {
   to?: string;
 }
 
-function dateRange(
+export function dateRange(
   from?: string,
   to?: string
 ): { gte?: Date; lte?: Date } | undefined {

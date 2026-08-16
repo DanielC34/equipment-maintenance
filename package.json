@@ -13,7 +13,12 @@
     "db:studio": "prisma studio",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
-    "db:reset": "docker compose down -v && docker compose up -d && npm run db:migrate && npm run db:seed"
+    "db:reset": "docker compose down -v && docker compose up -d && npm run db:migrate && npm run db:seed",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "vitest run --config vitest.config.mts",
+    "test:integration": "vitest run --config vitest.integration.config.mts",
+    "pretest:integration": "npm run test:db:setup",
+    "test:db:setup": "tsx scripts/test-db.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -48,7 +53,8 @@
     "prisma": "^7.9.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.5",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
