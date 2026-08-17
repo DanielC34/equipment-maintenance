@@ -23,6 +23,7 @@ export interface CleanupSet {
   taskIds?: string[];
   recordIds?: string[];
   downtimeIds?: string[];
+  auditIds?: string[];
 }
 
 export async function cleanup(set: CleanupSet): Promise<void> {
@@ -32,6 +33,7 @@ export async function cleanup(set: CleanupSet): Promise<void> {
   const taskIds = set.taskIds ?? [];
   const recordIds = set.recordIds ?? [];
   const downtimeIds = set.downtimeIds ?? [];
+  const auditIds = set.auditIds ?? [];
 
   const recordOr = [
     { id: { in: recordIds } },
@@ -39,6 +41,19 @@ export async function cleanup(set: CleanupSet): Promise<void> {
     { technicianId: { in: userIds } },
   ];
 
+  await prisma.auditLog.deleteMany({
+    where: {
+      OR: [
+        { id: { in: auditIds } },
+        { actorId: { in: userIds } },
+        {
+          entityId: {
+            in: [...equipmentIds, ...taskIds, ...recordIds, ...downtimeIds],
+          },
+        },
+      ],
+    },
+  });
   await prisma.downtimeEvent.deleteMany({
     where: {
       OR: [
@@ -74,6 +89,7 @@ export async function cleanup(set: CleanupSet): Promise<void> {
 }
 
 export async function wipeTables(): Promise<void> {
+  await prisma.auditLog.deleteMany();
   await prisma.downtimeEvent.deleteMany();
   await prisma.partUsed.deleteMany();
   await prisma.maintenanceRecord.deleteMany();

@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   BarChart3,
   CalendarClock,
+  History,
   LayoutDashboard,
   Settings,
   TriangleAlert,
@@ -71,6 +72,13 @@ export const NAV_SECTIONS: readonly NavSection[] = [
   {
     title: 'Administration',
     items: [
+      {
+        href: '/audit',
+        label: 'Audit Log',
+        description: 'Recorded user activity',
+        icon: History,
+        permission: PERMISSIONS.auditView,
+      },
       {
         href: '/admin',
         label: 'Administration',

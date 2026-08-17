@@ -10,6 +10,7 @@ import {
   equipmentFormSchema,
   type EquipmentFormValues,
 } from '@/lib/validations';
+import { writeAuditLog } from '@/server/audit';
 
 export type EquipmentActionResult =
   | { ok: true }
@@ -36,7 +37,7 @@ function isUniqueConstraintError(error: unknown): boolean {
 export async function createEquipment(
   values: EquipmentFormValues
 ): Promise<EquipmentActionResult> {
-  await requirePermission(PERMISSIONS.equipmentCreate);
+  const session = await requirePermission(PERMISSIONS.equipmentCreate);
 
   const parsed = equipmentFormSchema.safeParse(values);
   if (!parsed.success) {
@@ -61,16 +62,28 @@ export async function createEquipment(
   }
 
   try {
-    const equipment = await prisma.equipment.create({
-      data: {
-        name: data.name,
-        assetNumber: data.assetNumber,
-        description: data.description?.trim() ? data.description : null,
-        location: data.location,
-        status: data.status,
-        criticality: data.criticality?.trim() ? data.criticality : null,
-        factoryId: data.factoryId,
-      },
+    const equipment = await prisma.$transaction(async (tx) => {
+      const created = await tx.equipment.create({
+        data: {
+          name: data.name,
+          assetNumber: data.assetNumber,
+          description: data.description?.trim() ? data.description : null,
+          location: data.location,
+          status: data.status,
+          criticality: data.criticality?.trim() ? data.criticality : null,
+          factoryId: data.factoryId,
+        },
+      });
+
+      await writeAuditLog(tx, {
+        actorId: session.user.id,
+        action: 'CREATE',
+        entityType: 'EQUIPMENT',
+        entityId: created.id,
+        entityLabel: created.name,
+      });
+
+      return created;
     });
 
     revalidatePath('/equipment');
@@ -91,7 +104,7 @@ export async function updateEquipment(
   id: string,
   values: EquipmentFormValues
 ): Promise<EquipmentActionResult> {
-  await requirePermission(PERMISSIONS.equipmentEdit);
+  const session = await requirePermission(PERMISSIONS.equipmentEdit);
 
   const parsed = equipmentFormSchema.safeParse(values);
   if (!parsed.success) {
@@ -121,17 +134,27 @@ export async function updateEquipment(
   }
 
   try {
-    await prisma.equipment.update({
-      where: { id },
-      data: {
-        name: data.name,
-        assetNumber: data.assetNumber,
-        description: data.description?.trim() ? data.description : null,
-        location: data.location,
-        status: data.status,
-        criticality: data.criticality?.trim() ? data.criticality : null,
-        factoryId: data.factoryId,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.equipment.update({
+        where: { id },
+        data: {
+          name: data.name,
+          assetNumber: data.assetNumber,
+          description: data.description?.trim() ? data.description : null,
+          location: data.location,
+          status: data.status,
+          criticality: data.criticality?.trim() ? data.criticality : null,
+          factoryId: data.factoryId,
+        },
+      });
+
+      await writeAuditLog(tx, {
+        actorId: session.user.id,
+        action: 'UPDATE',
+        entityType: 'EQUIPMENT',
+        entityId: id,
+        entityLabel: data.name,
+      });
     });
 
     revalidatePath('/equipment');

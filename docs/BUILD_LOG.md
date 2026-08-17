@@ -879,3 +879,108 @@ Runtime verification against the running PostgreSQL container (production build 
 ### Next milestone
 
 - **Activity/audit log**: record who did what (created/resolved downtime, plus the earlier task/record/equipment actions) as an audit trail; revisit dashboard scope (MTBF/availability) once a meaningful window of events exists.
+
+---
+
+## Milestone 12 — Activity/Audit Log
+
+**Goal**: a reliable, append-only record of the important operational mutations already in EMMS, so administrators can answer *who did what, to which entity, when, and with what outcome*. A single generic `AuditLog` model backs every module (no per-module audit tables). Audit entries are written **in the same database transaction** as the business mutation and the actor is always the authenticated session user — never client-supplied. Viewing is a new **`auditView`** permission held by **ADMINISTRATOR** only.
+
+### Scope alignment & discrepancies (reported before building)
+
+- **PRD §11** lists "Audit logs with detailed activity tracking" as **out of MVP scope** (V2-FE-018). The BUILD_LOG's M8→M10 "next milestone" notes and the project owner have moved it to M12; the roadmap/BUILD_LOG take precedence here (consistent with M8–M11 already exceeding the strict PRD V1 scope).
+- **User/admin mutations do not exist yet** (the `/admin` page is a placeholder), so there are no user-management actions to audit; the BUILD_LOG's "against … users" point is deferred until user management is built.
+- **Authentication events (login/logout) are not required** by any canonical doc and were deliberately excluded (they live in Auth.js routes, outside the app's Server Actions).
+- **No DELETE actions exist** (PRD FR-012 equipment deletion was never implemented as a server action), so no delete events are recorded; the model is ready for a future `DELETE` action value.
+
+### Schema / enums
+
+- **`AuditAction`** = `CREATE | UPDATE | START | COMPLETE | RESOLVE`.
+- **`AuditEntityType`** = `EQUIPMENT | MAINTENANCE_TASK | MAINTENANCE_RECORD | DOWNTIME_EVENT`.
+- **`AuditLog`** model:
+  - `id`, `actorId` (FK → User, **required** — every audited mutation runs under an authenticated session), `action`, `entityType`, `entityId`, `entityLabel?` (a name/title snapshot at action time so descriptions survive later renames), `createdAt @default(now())`.
+  - Cover indexes for the read patterns: `@@index([createdAt])`, `@@index([actorId, createdAt])`, `@@index([action, createdAt])`, `@@index([entityType, entityId])`.
+  - `User.auditLogs` back-relation added.
+- Migration `20260817000000_add_audit_log` generated via `prisma migrate dev --create-only`, renamed to the canonical `YYYYMMDD000000` pattern, applied with `prisma migrate deploy`, `prisma generate` re-run. Verified in `psql`: both enums, the table, all four indexes, and the FK.
+
+### Data access (`src/server/audit.ts`)
+
+- `AUDIT_PAGE_SIZE = 20`.
+- **`listAuditLog(filter)`** — the single query behind the `/audit` page:
+  - Optional `q` (OR across actor name/email, `entityLabel`, `entityId`, case-insensitive contains), `actorId`, `action`, `entityType`, and `from`/`to` on `createdAt` (`to` clamped to end-of-day `23:59:59.999` — the same semantics as the other list pages).
+  - Sorted `createdAt` desc → `id` desc (id tiebreak is safe because cuid ids don't sort reliably by creation alone).
+  - Includes `actor` (id/name/email/role); returns `{ items, total, page, pageSize, totalPages }`.
+- **`listAuditActors()`** — all users (id/name/email/role) for the "User" filter dropdown.
+- **`describeAudit(entry)`** — pure, shared human-readable sentence (`"created equipment "CNC Milling Machine""`), plus `ACTION_LABELS` / `ENTITY_TYPE_LABELS` maps.
+- **`writeAuditLog(tx, entry)`** — the write helper called *inside* a `prisma.$transaction` callback. Its tx parameter is typed as `Pick<PrismaClient, 'auditLog'>` (a structural client that only requires what it uses) because **Prisma 7 removed `Prisma.TransactionClient`**; the interactive-transaction callback param is `Omit<PrismaClient, ITXClientDenyList>`, which satisfies that shape.
+
+### Server actions (transactional audit writes)
+
+Every mutation below now wraps its business write **and** the audit insert in a single `prisma.$transaction`, so a successful mutation can never be missing its audit row and a failed mutation never leaves one. All pre-rolled validation/authorization failures return **before** the transaction → no audit row. The actor is `session.user.id` only.
+
+| Action | Audit row (`action` / `entityType` / `entityLabel`) |
+|---|---|
+| `createEquipment` | CREATE / EQUIPMENT / equipment name |
+| `updateEquipment` | UPDATE / EQUIPMENT / submitted name |
+| `createMaintenanceTask` | CREATE / MAINTENANCE_TASK / task title |
+| `updateMaintenanceTask` | UPDATE / MAINTENANCE_TASK / submitted title |
+| `startMaintenanceTask` | START / MAINTENANCE_TASK / task title |
+| `completeMaintenanceTask` | COMPLETE / MAINTENANCE_TASK / task title (the record creation is a side effect of this one mutation) |
+| `recordDowntimeEvent` | CREATE / DOWNTIME_EVENT / `equipment.name · assetNumber` |
+| `resolveDowntimeEvent` | RESOLVE / DOWNTIME_EVENT / `equipment.name · assetNumber` |
+
+Note for `completeMaintenanceTask`: this keeps **one audit row per server-action mutation** (the task completion), even though it also creates a `MaintenanceRecord` — the simplest, most predictable rule.
+
+### Validation (`src/lib/validations.ts`)
+
+- **`auditFilterSchema`** — `q` trimmed ≤200 (catch → ''); optional `actorId` (empty → undefined); `action`/`entityType` enum-or-empty (empty → undefined, invalid enum → undefined via catch); `from`/`to` (empty → undefined); `page` coerced int min 1 catch 1. Matches the established list-filter conventions.
+
+### Permission / RBAC
+
+- **`auditView: 'audit:view'`** added to the centralized `PERMISSIONS` matrix and granted **only to ADMINISTRATOR** (the most sensitive/compliance surface, per least privilege; follows the Session 11 "most sensitive capability = admin-only" pattern and the codebase's `reportsView` precedent). The `/audit` page and the nav item both gate on it, and the server action-less read path enforces it via `requirePermission`.
+
+### UI / routes
+
+- **`/audit`** (`src/app/(app)/audit/page.tsx`) — read-only; `requirePermission(PERMISSIONS.auditView)`:
+  - GET filter form: search box, User dropdown (from `listAuditActors`), Action dropdown, Entity dropdown, `from`/`to` dates, Search + Clear; params round-trip through pagination links.
+  - Table: When (timestamp), Who (name + lowercase role), Action badge, Entity badge + deep-link into the related record (`/equipment/[id]`, `/maintenance/[id]`, `/maintenance/history/[id]`, `/downtime/[id]`), What happened (human-readable description + entity id).
+  - Pagination (Previous/Next, "Showing x–y of N") with the same last-page clamp as the other lists; two empty states ("no entries yet" vs "…match your filters").
+  - No write controls anywhere — no edit/delete.
+- **Nav**: "Audit Log" item added under **Administration** in `src/lib/navigation.ts` (History icon, `auditView`).
+- **Badges**: `src/components/audit/audit-badges.tsx` — per-action and per-entity colored pills.
+
+### Reliability / transaction approach
+
+- Every audited mutation + its audit row commit in the **same interactive `prisma.$transaction`** (all-or-nothing). There is no outbox, message broker, event bus, or external logging platform — the single Postgres write is both the business record and the audit record.
+
+### Testing (M11 infra extended)
+
+- **Unit** (`tests/unit/audit.test.ts`, 10 tests): `auditView` is ADMINISTRATOR-only (and enforced via `hasPermission`); `describeAudit` output for every action incl. the no-label fallback; `auditFilterSchema` defaults/enum-normalisation/page coercion/trimming.
+- **Integration** (`tests/integration/audit.test.ts`, 14 tests, against `emms_test`): `listAuditLog` newest-first, actor/action/entity filters, search-by-label/actor-name, `createdAt` date range, 22-row pagination; CREATE/UPDATE for equipment; the four-action maintenance lifecycle; downtime CREATE (with a **client-supplied `reportedById`/`actorId` in the payload ignored — actor stays the session user**) + RESOLVE; failed mutations (validation, non-assigned start, not-started completion, ghost equipment) produce **no** audit row.
+- **Fixtures** (`tests/integration/fixtures.ts`): `cleanup()` now deletes `AuditLog` rows **first** (by audit id, actor id, or entity id) and `wipeTables()` clears them — this is required because the audit FK references users/entities that the existing suites delete (without it, the pre-existing equipment/downtime/maintenance suites would violate `AuditLog_actorId_fkey` during teardown). The pre-existing `equipment.test.ts` now calls `setSession` with a real created admin user (matching the maintenance/downtime suites), since actions now need a real actor row.
+- **Runtime** (`scripts/verify-m12-runtime.ts` against `next start` with real Auth.js cookie jars): authz boundaries for `/audit` (anon→login; admin 200; the other five roles denied), full role/page matrix incl. `/audit`, per-mutation audit-row assertions honouring actor/action/entity/label, no-row assertions for failed mutations (duplicate/invalid equipment, non-assigned start, double completion, crossed-time/ghost downtime), double-resolve non-duplication, audit-page list/filter/search/empty-state checks, and an admin regression sweep over every route.
+
+### Verification
+
+`npm run lint` (0 problems), `npx tsc --noEmit`, and `npx next build` all pass (**22 routes**, including `/audit`). `npm test` passes end to end:
+
+- **Unit**: 94 tests across 5 files (10 new for audit; the existing `permissions.test.ts` matrix is automatically correct because ADMINISTRATOR uses `ALL_ACCESS` and no other role list was changed).
+- **Integration**: 79 tests across 5 files (14 new for audit) against `emms_test`; all pass.
+- **Runtime**: `npx tsx scripts/verify-m12-runtime.ts` → **111 passed, 0 failed**, run against the production build with real session cookie jars, then cleanup restored the dev DB.
+
+Post-run `psql` on `emms_dev`: `AuditLog`=0, exactly seed counts everywhere else (4 equipment, 3 tasks, 2 records, 3 downtime events, 6 users, 1 factory). No probe or temporary artifacts remain. Containers: `emms_postgres` was restarted on host port **5433** (the canonical compose maps 5432, which the unrelated `dealbridgecrm` project holds) and `emms_redis` on 6379 — `docker-compose.yml` was left untouched.
+
+### Known limitations
+
+- **Auth events (login/logout) are not audited** — not in the canonical docs; can be added later by hooking Auth.js callbacks if required.
+- **User-management actions are not audited** (no such mutations exist yet).
+- **No DELETE audit value** — equipment deletion (PRD FR-012) is still unimplemented; when it lands, add `DELETE` to `AuditAction` and wire it.
+- **One audit row per mutation**: record creation inside task completion is represented by the `COMPLETE` row on the task, not a separate row.
+- **Entity deep-links assume the entity still exists** — safe today because the app has no delete flows; a future delete feature should reconsider link rendering or add tombstone/retention handling.
+- **No retention/pruning policy** — the audit log grows unboundedly; archival/cleanup is a scale-after-MVP concern (consistent with the roadmap).
+- **Append-only by construction**: there is intentionally no UI or server action to edit or delete audit entries.
+- Streaming keeps HTTP 200 on the 404 boundary (established Next.js behavior).
+
+### Next milestone
+
+- **User administration** (the `/admin` placeholder): create/deactivate users, assign roles, and audit those user-management actions — which completes the "against … users" coverage the BUILD_LOG's earlier notes called for. Also revisit downtime analytics (MTTR/MTBF) and dashboard optimisations once data accrues.

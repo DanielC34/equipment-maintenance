@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { invoke, type ActionResult } from './mocks';
+import { setSession } from './mocks';
 import prisma from '@/lib/prisma';
 import {
   listEquipment,
@@ -45,7 +46,14 @@ async function validEquipmentValues(
 
 beforeAll(async () => {
   tracked.factoryIds.push(await createFactory(`${PROBE}_factory`));
-  tracked.userIds.push(await createUser('ADMINISTRATOR', `${PROBE}_admin`));
+  const admin = await createUser('ADMINISTRATOR', `${PROBE}_admin`);
+  tracked.userIds.push(admin);
+  setSession({
+    id: admin,
+    name: 'Admin Probe',
+    email: 'admin.probe@test.local',
+    role: 'ADMINISTRATOR',
+  });
 });
 
 afterAll(async () => {

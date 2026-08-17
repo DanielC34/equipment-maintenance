@@ -15,6 +15,7 @@ import {
   getMaintenanceTaskById,
   userCanBeAssigned,
 } from '@/server/maintenance';
+import { writeAuditLog } from '@/server/audit';
 
 export type MaintenanceActionResult =
   | { ok: true }
@@ -34,7 +35,7 @@ function toFieldErrors(error: z.ZodError): Record<string, string> {
 export async function createMaintenanceTask(
   values: MaintenanceTaskFormValues
 ): Promise<MaintenanceActionResult> {
-  await requirePermission(PERMISSIONS.maintenanceSchedule);
+  const session = await requirePermission(PERMISSIONS.maintenanceSchedule);
 
   const parsed = maintenanceTaskFormSchema.safeParse(values);
   if (!parsed.success) {
@@ -67,15 +68,27 @@ export async function createMaintenanceTask(
     };
   }
 
-  const task = await prisma.maintenanceTask.create({
-    data: {
-      title: data.title,
-      description: data.description?.trim() ? data.description : null,
-      equipmentId: data.equipmentId,
-      assignedUserId: data.assignedUserId,
-      scheduledDate: new Date(data.scheduledDate),
-      priority: data.priority,
-    },
+  const task = await prisma.$transaction(async (tx) => {
+    const created = await tx.maintenanceTask.create({
+      data: {
+        title: data.title,
+        description: data.description?.trim() ? data.description : null,
+        equipmentId: data.equipmentId,
+        assignedUserId: data.assignedUserId,
+        scheduledDate: new Date(data.scheduledDate),
+        priority: data.priority,
+      },
+    });
+
+    await writeAuditLog(tx, {
+      actorId: session.user.id,
+      action: 'CREATE',
+      entityType: 'MAINTENANCE_TASK',
+      entityId: created.id,
+      entityLabel: created.title,
+    });
+
+    return created;
   });
 
   revalidatePath('/maintenance');
@@ -87,7 +100,7 @@ export async function updateMaintenanceTask(
   id: string,
   values: MaintenanceTaskFormValues
 ): Promise<MaintenanceActionResult> {
-  await requirePermission(PERMISSIONS.maintenanceSchedule);
+  const session = await requirePermission(PERMISSIONS.maintenanceSchedule);
 
   const parsed = maintenanceTaskFormSchema.safeParse(values);
   if (!parsed.success) {
@@ -136,17 +149,27 @@ export async function updateMaintenanceTask(
     };
   }
 
-  await prisma.maintenanceTask.update({
-    where: { id },
-    data: {
-      title: data.title,
-      description: data.description?.trim() ? data.description : null,
-      equipmentId: data.equipmentId,
-      assignedUserId: data.assignedUserId,
-      scheduledDate: new Date(data.scheduledDate),
-      priority: data.priority,
-      status: existing.status,
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.maintenanceTask.update({
+      where: { id },
+      data: {
+        title: data.title,
+        description: data.description?.trim() ? data.description : null,
+        equipmentId: data.equipmentId,
+        assignedUserId: data.assignedUserId,
+        scheduledDate: new Date(data.scheduledDate),
+        priority: data.priority,
+        status: existing.status,
+      },
+    });
+
+    await writeAuditLog(tx, {
+      actorId: session.user.id,
+      action: 'UPDATE',
+      entityType: 'MAINTENANCE_TASK',
+      entityId: id,
+      entityLabel: data.title,
+    });
   });
 
   revalidatePath('/maintenance');
@@ -191,9 +214,19 @@ export async function startMaintenanceTask(
     };
   }
 
-  await prisma.maintenanceTask.update({
-    where: { id },
-    data: { status: 'IN_PROGRESS' },
+  await prisma.$transaction(async (tx) => {
+    await tx.maintenanceTask.update({
+      where: { id },
+      data: { status: 'IN_PROGRESS' },
+    });
+
+    await writeAuditLog(tx, {
+      actorId: session.user.id,
+      action: 'START',
+      entityType: 'MAINTENANCE_TASK',
+      entityId: id,
+      entityLabel: task.title,
+    });
   });
 
   revalidatePath('/maintenance');
@@ -275,6 +308,14 @@ export async function completeMaintenanceTask(
     await tx.maintenanceTask.update({
       where: { id },
       data: { status: 'COMPLETED' },
+    });
+
+    await writeAuditLog(tx, {
+      actorId: session.user.id,
+      action: 'COMPLETE',
+      entityType: 'MAINTENANCE_TASK',
+      entityId: id,
+      entityLabel: task.title,
     });
   });
 
