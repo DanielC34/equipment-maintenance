@@ -12,6 +12,7 @@ import {
   type DowntimeEventResolveValues,
 } from '@/lib/validations';
 import { getDowntimeEventById } from '@/server/downtime';
+import { writeAuditLog } from '@/server/audit';
 
 export type DowntimeActionResult =
   | { ok: true }
@@ -65,7 +66,7 @@ export async function recordDowntimeEvent(
 
   const equipment = await prisma.equipment.findUnique({
     where: { id: data.equipmentId },
-    select: { id: true },
+    select: { id: true, name: true, assetNumber: true },
   });
   if (!equipment) {
     return {
@@ -75,16 +76,28 @@ export async function recordDowntimeEvent(
     };
   }
 
-  const event = await prisma.downtimeEvent.create({
-    data: {
-      equipmentId: data.equipmentId,
-      reportedById: session.user.id,
-      startedAt,
-      endedAt,
-      status: endedAt ? 'RESOLVED' : 'OPEN',
-      reason: data.reason,
-      notes: data.notes?.trim() ? data.notes : null,
-    },
+  const event = await prisma.$transaction(async (tx) => {
+    const created = await tx.downtimeEvent.create({
+      data: {
+        equipmentId: data.equipmentId,
+        reportedById: session.user.id,
+        startedAt,
+        endedAt,
+        status: endedAt ? 'RESOLVED' : 'OPEN',
+        reason: data.reason,
+        notes: data.notes?.trim() ? data.notes : null,
+      },
+    });
+
+    await writeAuditLog(tx, {
+      actorId: session.user.id,
+      action: 'CREATE',
+      entityType: 'DOWNTIME_EVENT',
+      entityId: created.id,
+      entityLabel: `${equipment.name} · ${equipment.assetNumber}`,
+    });
+
+    return created;
   });
 
   revalidatePath('/downtime');
@@ -96,7 +109,7 @@ export async function resolveDowntimeEvent(
   id: string,
   values: DowntimeEventResolveValues
 ): Promise<DowntimeActionResult> {
-  await requirePermission(PERMISSIONS.downtimeResolve);
+  const session = await requirePermission(PERMISSIONS.downtimeResolve);
 
   const parsed = downtimeEventResolveSchema.safeParse(values);
   if (!parsed.success) {
@@ -124,9 +137,19 @@ export async function resolveDowntimeEvent(
     return crossedTimesError({ endedAt: 'Must be after the start time.' });
   }
 
-  await prisma.downtimeEvent.update({
-    where: { id },
-    data: { endedAt, status: 'RESOLVED' },
+  await prisma.$transaction(async (tx) => {
+    await tx.downtimeEvent.update({
+      where: { id },
+      data: { endedAt, status: 'RESOLVED' },
+    });
+
+    await writeAuditLog(tx, {
+      actorId: session.user.id,
+      action: 'RESOLVE',
+      entityType: 'DOWNTIME_EVENT',
+      entityId: id,
+      entityLabel: `${event.equipment.name} · ${event.equipment.assetNumber}`,
+    });
   });
 
   revalidatePath('/downtime');

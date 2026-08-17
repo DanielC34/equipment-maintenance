@@ -275,3 +275,56 @@ export const reportFilterSchema = z.object({
 });
 
 export type ReportFilterValues = z.infer<typeof reportFilterSchema>;
+
+export const AUDIT_ACTIONS = [
+  'CREATE',
+  'UPDATE',
+  'START',
+  'COMPLETE',
+  'RESOLVE',
+] as const;
+
+export const AUDIT_ENTITY_TYPES = [
+  'EQUIPMENT',
+  'MAINTENANCE_TASK',
+  'MAINTENANCE_RECORD',
+  'DOWNTIME_EVENT',
+] as const;
+
+export const auditFilterSchema = z.object({
+  q: z.string().trim().max(200).catch(''),
+  actorId: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .catch(undefined),
+  action: z
+    .enum(AUDIT_ACTIONS)
+    .or(z.literal(''))
+    .transform((value) => (value === '' ? undefined : value))
+    .catch(undefined),
+  entityType: z
+    .enum(AUDIT_ENTITY_TYPES)
+    .or(z.literal(''))
+    .transform((value) => (value === '' ? undefined : value))
+    .catch(undefined),
+  from: z
+    .string()
+    .trim()
+    .max(20)
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .catch(undefined),
+  to: z
+    .string()
+    .trim()
+    .max(20)
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .catch(undefined),
+  page: z.coerce.number().int().min(1).catch(1),
+});
+
+export type AuditFilterValues = z.infer<typeof auditFilterSchema>;

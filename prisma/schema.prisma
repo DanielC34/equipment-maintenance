@@ -51,6 +51,21 @@ enum DowntimeReason {
   CHANGEOVER
 }
 
+enum AuditAction {
+  CREATE
+  UPDATE
+  START
+  COMPLETE
+  RESOLVE
+}
+
+enum AuditEntityType {
+  EQUIPMENT
+  MAINTENANCE_TASK
+  MAINTENANCE_RECORD
+  DOWNTIME_EVENT
+}
+
 model User {
   id        String   @id @default(cuid())
   name      String
@@ -63,6 +78,7 @@ model User {
   assignedTasks    MaintenanceTask[]
   completedRecords MaintenanceRecord[]
   reportedDowntime  DowntimeEvent[]
+  auditLogs         AuditLog[]
 }
 
 model Factory {
@@ -152,4 +168,20 @@ model DowntimeEvent {
 
   @@index([equipmentId, startedAt])
   @@index([startedAt])
+}
+
+model AuditLog {
+  id          String          @id @default(cuid())
+  actorId     String
+  actor       User            @relation(fields: [actorId], references: [id])
+  action      AuditAction
+  entityType  AuditEntityType
+  entityId    String
+  entityLabel String?
+  createdAt   DateTime        @default(now())
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([entityType, entityId])
 }
