@@ -22,6 +22,7 @@ const ENTITY_STYLES: Record<AuditEntityType, string> = {
   MAINTENANCE_TASK: 'bg-indigo-50 text-indigo-700 ring-indigo-500/20',
   MAINTENANCE_RECORD: 'bg-blue-50 text-blue-700 ring-blue-500/20',
   DOWNTIME_EVENT: 'bg-rose-50 text-rose-700 ring-rose-500/20',
+  USER: 'bg-purple-50 text-purple-700 ring-purple-500/20',
 };
 
 const ENTITY_LABELS: Record<AuditEntityType, string> = {
@@ -29,6 +30,7 @@ const ENTITY_LABELS: Record<AuditEntityType, string> = {
   MAINTENANCE_TASK: 'Maintenance task',
   MAINTENANCE_RECORD: 'Maintenance record',
   DOWNTIME_EVENT: 'Downtime event',
+  USER: 'User',
 };
 
 export function AuditActionBadge({ action }: { action: AuditAction }) {

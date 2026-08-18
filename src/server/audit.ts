@@ -102,6 +102,7 @@ export const ENTITY_TYPE_LABELS: Record<AuditEntityType, string> = {
   MAINTENANCE_TASK: 'maintenance task',
   MAINTENANCE_RECORD: 'maintenance record',
   DOWNTIME_EVENT: 'downtime event',
+  USER: 'user',
 }
 
 export function describeAudit(entry: {

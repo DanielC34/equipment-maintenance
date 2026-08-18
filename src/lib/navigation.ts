@@ -4,8 +4,8 @@ import {
   CalendarClock,
   History,
   LayoutDashboard,
-  Settings,
   TriangleAlert,
+  Users,
   Wrench,
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/permissions';
@@ -80,10 +80,10 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         permission: PERMISSIONS.auditView,
       },
       {
-        href: '/admin',
-        label: 'Administration',
-        description: 'Users and system configuration',
-        icon: Settings,
+        href: '/admin/users',
+        label: 'Users',
+        description: 'User accounts and roles',
+        icon: Users,
         permission: PERMISSIONS.usersManage,
       },
     ],
