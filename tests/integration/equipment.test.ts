@@ -7,13 +7,20 @@ import {
   getEquipmentById,
   listFactories,
 } from '@/server/equipment';
-import { createEquipment, updateEquipment } from '@/server/actions/equipment';
+import { listEquipmentsForSelect } from '@/server/maintenance';
+import { getEquipmentStatusCounts, getEquipmentTotal } from '@/server/dashboard';
+import {
+  createEquipment,
+  updateEquipment,
+  deleteEquipment,
+} from '@/server/actions/equipment';
 import type { EquipmentFormValues } from '@/lib/validations';
 import {
   cleanup,
   createEquipment as createEquipmentRow,
   createFactory,
   createUser,
+  unique,
 } from './fixtures';
 
 const PROBE = 'probe_eq';
@@ -261,5 +268,170 @@ describe('updateEquipment action', () => {
         'already exists'
       );
     }
+  });
+
+  it('rejects editing a previously archived equipment', async () => {
+    const id = await createEquipmentRow(tracked.factoryIds[0], {
+      assetNumber: `${PROBE}_archived_edit`,
+      name: `${PROBE}_archived_edit_name`,
+    });
+    tracked.equipmentIds.push(id);
+
+    const archive = await invoke(() => deleteEquipment(id));
+    expect(archive.kind).toBe('result');
+    if (archive.kind === 'result') {
+      expect(archive.value).toEqual({ ok: true });
+    }
+
+    const values = await validEquipmentValues(`${PROBE}_after_archive`);
+    const result = await invoke(() => updateEquipment(id, values));
+    expect(result.kind).toBe('result');
+    if (result.kind === 'result') {
+      expect(result.value).toEqual({
+        ok: false,
+        error: 'This equipment has been archived and can no longer be edited.',
+      });
+    }
+  });
+});
+
+describe('deleteEquipment action', () => {
+  it('archives an equipment instead of removing the row', async () => {
+    const id = await createEquipmentRow(tracked.factoryIds[0], {
+      assetNumber: `${PROBE}_to_delete`,
+      name: `${PROBE}_to_delete_name`,
+    });
+    tracked.equipmentIds.push(id);
+
+    const result = await invoke(() => deleteEquipment(id));
+    expect(result.kind).toBe('result');
+    if (result.kind === 'result') {
+      expect(result.value).toEqual({ ok: true });
+    }
+
+    const row = await prisma.equipment.findUnique({ where: { id } });
+    expect(row?.id).toBe(id);
+    expect(row?.deletedAt).not.toBeNull();
+  });
+
+  it('writes an audit entry for the deletion', async () => {
+    const id = await createEquipmentRow(tracked.factoryIds[0], {
+      assetNumber: `${PROBE}_delete_audit`,
+      name: `${PROBE}_delete_audit_name`,
+    });
+    tracked.equipmentIds.push(id);
+
+    await invoke(() => deleteEquipment(id));
+
+    const entry = await prisma.auditLog.findFirst({
+      where: {
+        entityType: 'EQUIPMENT',
+        entityId: id,
+        action: 'DELETE',
+      },
+    });
+    expect(entry).not.toBeNull();
+    expect(entry?.entityLabel).toBe(`${PROBE}_delete_audit_name`);
+  });
+
+  it('is idempotent when called twice', async () => {
+    const id = await createEquipmentRow(tracked.factoryIds[0], {
+      assetNumber: `${PROBE}_twice_delete`,
+      name: `${PROBE}_twice_delete_name`,
+    });
+    tracked.equipmentIds.push(id);
+
+    const first = await invoke(() => deleteEquipment(id));
+    expect(first.kind).toBe('result');
+    if (first.kind === 'result') {
+      expect(first.value).toEqual({ ok: true });
+    }
+
+    const second = await invoke(() => deleteEquipment(id));
+    expect(second.kind).toBe('result');
+    if (second.kind === 'result') {
+      expect(second.value).toEqual({
+        ok: false,
+        error: 'This equipment has already been archived.',
+      });
+    }
+  });
+
+  it('reports when the equipment no longer exists', async () => {
+    const result = await invoke(() => deleteEquipment('ghost-equipment'));
+    expect(result.kind).toBe('result');
+    if (result.kind === 'result') {
+      expect(result.value).toEqual({
+        ok: false,
+        error: 'This equipment no longer exists.',
+      });
+    }
+  });
+});
+
+describe('archived equipment visibility', () => {
+  it('hides archived equipment from the active registry', async () => {
+    const id = await createEquipmentRow(tracked.factoryIds[0], {
+      assetNumber: unique('asset_arch_vis'),
+      name: `${PROBE}_arch_vis_uniquename`,
+    });
+    tracked.equipmentIds.push(id);
+
+    const before = await listEquipment({ q: 'arch_vis_uniquename', page: 1 });
+    expect(before.total).toBe(1);
+
+    await invoke(() => deleteEquipment(id));
+
+    const after = await listEquipment({ q: 'arch_vis_uniquename', page: 1 });
+    expect(after.total).toBe(0);
+  });
+
+  it('keeps the record readable for historical access', async () => {
+    const id = await createEquipmentRow(tracked.factoryIds[0], {
+      assetNumber: unique('asset_arch_read'),
+      name: `${PROBE}_arch_read_uniquename`,
+    });
+    tracked.equipmentIds.push(id);
+
+    await invoke(() => deleteEquipment(id));
+
+    const row = await getEquipmentById(id);
+    expect(row?.id).toBe(id);
+    expect(row?.deletedAt).not.toBeNull();
+    expect(row?.factory).toBeDefined();
+  });
+
+  it('excludes archived equipment from the selection dropdown', async () => {
+    const id = await createEquipmentRow(tracked.factoryIds[0], {
+      assetNumber: unique('asset_arch_dd'),
+      name: `${PROBE}_arch_dd_uniquename`,
+    });
+    tracked.equipmentIds.push(id);
+
+    await invoke(() => deleteEquipment(id));
+
+    const options = await listEquipmentsForSelect();
+    expect(options.some((o) => o.id === id)).toBe(false);
+  });
+
+  it('excludes archived equipment from dashboard counts', async () => {
+    const factoryId = await createFactory(unique('archdashboard_factory'));
+    tracked.factoryIds.push(factoryId);
+
+    const id = await createEquipmentRow(factoryId, {
+      assetNumber: unique('asset_arch_dash'),
+      name: `${PROBE}_arch_dash_uniquename`,
+    });
+    tracked.equipmentIds.push(id);
+
+    const before = await getEquipmentTotal();
+    await invoke(() => deleteEquipment(id));
+    const after = await getEquipmentTotal();
+
+    expect(after).toBe(before - 1);
+
+    const counts = await getEquipmentStatusCounts();
+    const sum = Object.values(counts).reduce((a, b) => a + b, 0);
+    expect(sum).toBe(after);
   });
 });

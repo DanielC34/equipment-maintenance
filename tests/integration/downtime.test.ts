@@ -239,6 +239,28 @@ describe('recordDowntimeEvent action', () => {
     }
   });
 
+  it('rejects recording downtime against archived equipment', async () => {
+    const archived = await createEquipmentRow(tracked.factoryIds[0], {
+      name: `${PROBE}_archived_eq`,
+      assetNumber: `${PROBE}_archived_asset`,
+    });
+    tracked.equipmentIds.push(archived);
+    await prisma.equipment.update({
+      where: { id: archived },
+      data: { deletedAt: new Date() },
+    });
+
+    const result = await invoke(() =>
+      recordDowntimeEvent(formValues({ equipmentId: archived }))
+    );
+    expect(result.kind).toBe('result');
+    if (result.kind === 'result') {
+      expect((result.value as { error: string }).error).toContain(
+        'has been archived'
+      );
+    }
+  });
+
   it('returns field errors for invalid input', async () => {
     const result = await invoke(() =>
       recordDowntimeEvent(

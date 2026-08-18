@@ -57,6 +57,7 @@ enum AuditAction {
   START
   COMPLETE
   RESOLVE
+  DELETE
 }
 
 enum AuditEntityType {
@@ -79,8 +80,8 @@ model User {
 
   assignedTasks    MaintenanceTask[]
   completedRecords MaintenanceRecord[]
-  reportedDowntime  DowntimeEvent[]
-  auditLogs         AuditLog[]
+  reportedDowntime DowntimeEvent[]
+  auditLogs        AuditLog[]
 }
 
 model Factory {
@@ -100,6 +101,7 @@ model Equipment {
   location    String
   status      EquipmentStatus @default(OPERATIONAL)
   criticality String?
+  deletedAt   DateTime?
   factoryId   String
   factory     Factory         @relation(fields: [factoryId], references: [id])
   createdAt   DateTime        @default(now())
@@ -128,17 +130,17 @@ model MaintenanceTask {
 }
 
 model MaintenanceRecord {
-  id            String    @id @default(cuid())
-  taskId        String?   @unique
+  id            String           @id @default(cuid())
+  taskId        String?          @unique
   task          MaintenanceTask? @relation(fields: [taskId], references: [id])
   equipmentId   String
-  equipment     Equipment @relation(fields: [equipmentId], references: [id])
+  equipment     Equipment        @relation(fields: [equipmentId], references: [id])
   technicianId  String
-  technician    User      @relation(fields: [technicianId], references: [id])
+  technician    User             @relation(fields: [technicianId], references: [id])
   description   String
-  completedDate DateTime  @default(now())
+  completedDate DateTime         @default(now())
   notes         String?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime         @default(now())
 
   partsUsed PartUsed[]
 

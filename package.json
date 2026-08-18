@@ -19,6 +19,7 @@
     "test:integration": "vitest run --config vitest.integration.config.mts",
     "pretest:integration": "npm run test:db:setup",
     "verify:m13": "npx tsx scripts/verify-m13-runtime.ts",
+    "verify:m14": "npx tsx scripts/verify-m14-runtime.ts",
     "test:db:setup": "tsx scripts/test-db.ts"
   },
   "dependencies": {

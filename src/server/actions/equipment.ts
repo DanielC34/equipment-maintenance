@@ -15,7 +15,6 @@ import { writeAuditLog } from '@/server/audit';
 export type EquipmentActionResult =
   | { ok: true }
   | { ok: false; error: string; fieldErrors?: Record<string, string> };
-
 function toFieldErrors(error: z.ZodError): Record<string, string> {
   const fieldErrors: Record<string, string> = {};
   for (const issue of error.issues) {
@@ -121,6 +120,13 @@ export async function updateEquipment(
   if (!existing) {
     return { ok: false, error: 'This equipment no longer exists.' };
   }
+  if (existing.deletedAt) {
+    return {
+      ok: false,
+      error:
+        'This equipment has been archived and can no longer be edited.',
+    };
+  }
 
   const factory = await prisma.factory.findUnique({
     where: { id: data.factoryId },
@@ -170,4 +176,47 @@ export async function updateEquipment(
     }
     throw error;
   }
+}
+
+export async function deleteEquipment(
+  id: string
+): Promise<EquipmentActionResult> {
+  const session = await requirePermission(PERMISSIONS.equipmentDelete);
+
+  const existing = await prisma.equipment.findUnique({
+    where: { id },
+    select: { id: true, name: true, deletedAt: true },
+  });
+  if (!existing) {
+    return { ok: false, error: 'This equipment no longer exists.' };
+  }
+  if (existing.deletedAt) {
+    return {
+      ok: false,
+      error: 'This equipment has already been archived.',
+    };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.equipment.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+
+    await writeAuditLog(tx, {
+      actorId: session.user.id,
+      action: 'DELETE',
+      entityType: 'EQUIPMENT',
+      entityId: id,
+      entityLabel: existing.name,
+    });
+  });
+
+  revalidatePath('/equipment');
+  revalidatePath('/dashboard');
+  revalidatePath('/maintenance');
+  revalidatePath('/downtime');
+  revalidatePath('/reports');
+  revalidatePath(`/equipment/${id}`);
+  return { ok: true };
 }

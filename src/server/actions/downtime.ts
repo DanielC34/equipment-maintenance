@@ -66,13 +66,20 @@ export async function recordDowntimeEvent(
 
   const equipment = await prisma.equipment.findUnique({
     where: { id: data.equipmentId },
-    select: { id: true, name: true, assetNumber: true },
+    select: { id: true, name: true, assetNumber: true, deletedAt: true },
   });
   if (!equipment) {
     return {
       ok: false,
       error:
         'The selected equipment no longer exists. Reload the page and try again.',
+    };
+  }
+  if (equipment.deletedAt) {
+    return {
+      ok: false,
+      error:
+        'The selected equipment has been archived and can no longer be used to record downtime.',
     };
   }
 

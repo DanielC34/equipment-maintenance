@@ -224,6 +224,7 @@ export async function getMaintenanceTaskById(id: string) {
 
 export async function listEquipmentsForSelect() {
   return prisma.equipment.findMany({
+    where: { deletedAt: null },
     select: { id: true, name: true, assetNumber: true },
     orderBy: { name: 'asc' },
   });

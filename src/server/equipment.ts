@@ -13,7 +13,7 @@ export interface EquipmentFilter {
 export async function listEquipment(filter: EquipmentFilter) {
   const page = Math.max(1, filter.page);
 
-  const where: Prisma.EquipmentWhereInput = {};
+  const where: Prisma.EquipmentWhereInput = { deletedAt: null };
   if (filter.status) {
     where.status = filter.status;
   }

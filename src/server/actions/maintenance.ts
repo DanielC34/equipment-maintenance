@@ -50,13 +50,20 @@ export async function createMaintenanceTask(
 
   const equipment = await prisma.equipment.findUnique({
     where: { id: data.equipmentId },
-    select: { id: true },
+    select: { id: true, deletedAt: true },
   });
   if (!equipment) {
     return {
       ok: false,
       error:
         'The selected equipment no longer exists. Reload the page and try again.',
+    };
+  }
+  if (equipment.deletedAt) {
+    return {
+      ok: false,
+      error:
+        'The selected equipment has been archived and can no longer be scheduled for maintenance.',
     };
   }
 
@@ -131,13 +138,20 @@ export async function updateMaintenanceTask(
 
   const equipment = await prisma.equipment.findUnique({
     where: { id: data.equipmentId },
-    select: { id: true },
+    select: { id: true, deletedAt: true },
   });
   if (!equipment) {
     return {
       ok: false,
       error:
         'The selected equipment no longer exists. Reload the page and try again.',
+    };
+  }
+  if (equipment.deletedAt) {
+    return {
+      ok: false,
+      error:
+        'The selected equipment has been archived and can no longer be scheduled for maintenance.',
     };
   }
 
