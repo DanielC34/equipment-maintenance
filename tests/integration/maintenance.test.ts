@@ -277,6 +277,28 @@ describe('createMaintenanceTask action', () => {
     }
   });
 
+  it('rejects scheduling against archived equipment', async () => {
+    const archived = await createEquipmentRow(tracked.factoryIds[0], {
+      name: `${PROBE}_archived_eq`,
+      assetNumber: `${PROBE}_archived_asset`,
+    });
+    tracked.equipmentIds.push(archived);
+    await prisma.equipment.update({
+      where: { id: archived },
+      data: { deletedAt: new Date() },
+    });
+
+    const result = await invoke(() =>
+      createMaintenanceTask(taskFormValues({ equipmentId: archived }))
+    );
+    expect(result.kind).toBe('result');
+    if (result.kind === 'result') {
+      expect((result.value as { error: string }).error).toContain(
+        'has been archived'
+      );
+    }
+  });
+
   it('rejects a scheduled date in the past', async () => {
     const past = new Date(Date.now() - 86400000).toISOString();
     const result = await invoke(() =>
@@ -343,6 +365,33 @@ describe('updateMaintenanceTask action', () => {
     expect(result.kind).toBe('result');
     if (result.kind === 'result') {
       expect(result.value.ok).toBe(false);
+    }
+  });
+
+  it('rejects moving a task onto archived equipment', async () => {
+    const id = await createTask(equipmentA, technician, {
+      title: `${PROBE}_rearchive`,
+    });
+    tracked.taskIds.push(id);
+
+    const archived = await createEquipmentRow(tracked.factoryIds[0], {
+      name: `${PROBE}_rearchive_eq`,
+      assetNumber: `${PROBE}_rearchive_asset`,
+    });
+    tracked.equipmentIds.push(archived);
+    await prisma.equipment.update({
+      where: { id: archived },
+      data: { deletedAt: new Date() },
+    });
+
+    const result = await invoke(() =>
+      updateMaintenanceTask(id, taskFormValues({ equipmentId: archived }))
+    );
+    expect(result.kind).toBe('result');
+    if (result.kind === 'result') {
+      expect((result.value as { error: string }).error).toContain(
+        'has been archived'
+      );
     }
   });
 });

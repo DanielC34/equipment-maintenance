@@ -7,6 +7,7 @@ const ACTION_STYLES: Record<AuditAction, string> = {
   START: 'bg-amber-50 text-amber-700 ring-amber-600/20',
   COMPLETE: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
   RESOLVE: 'bg-teal-50 text-teal-700 ring-teal-600/20',
+  DELETE: 'bg-red-50 text-red-700 ring-red-600/20',
 };
 
 const ACTION_LABELS: Record<AuditAction, string> = {
@@ -15,6 +16,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   START: 'Started',
   COMPLETE: 'Completed',
   RESOLVE: 'Resolved',
+  DELETE: 'Deleted',
 };
 
 const ENTITY_STYLES: Record<AuditEntityType, string> = {

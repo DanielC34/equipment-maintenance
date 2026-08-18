@@ -1075,3 +1075,58 @@ Post-run `psql` on `emms_dev`: `AuditLog`=0, exactly seed counts everywhere else
 ### Next milestone
 
 - **Equipment deletion (PRD FR-012)** with a `DELETE` audit action; revoke-session hardening for deactivated accounts (session versioning); and revisit downtime analytics (MTTR/MTBF) once data accrues.
+
+---
+
+## Milestone 14 — Equipment Deletion (soft archive)
+
+**Goal**: implement PRD FR-012 (delete equipment) without destroying history. Deleting an equipment is a **soft archive**: the row is kept (so maintenance records, downtime events, and audit entries keep their FK references), it gains a `deletedAt` timestamp, it drops out of every *active* registry/select/dashboard query, and the archive action is recorded in the audit log as a new `DELETE` action. Archived equipment remains fully viewable for historical access but cannot be edited, re-scheduled, or used to record new downtime.
+
+### Schema
+
+- `Equipment.deletedAt DateTime?` — nullable soft-delete marker; `null` = active, set = archived. No new tables, no destructive columns, no composite indexes needed (active queries filter on a single nullable column).
+- Migration `20260819000000_add_equipment_deletion` created manually with `prisma migrate diff --from-config-datasource --to-schema` (the interactive `migrate dev` is unusable in this non-interactive shell), made BOM-free, applied with `prisma migrate deploy`, then `prisma generate`.
+
+### Permission / RBAC
+
+- **`equipmentDelete: 'equipment:delete'`** added to `PERMISSIONS` (`src/lib/permissions.ts`) and granted **only to ADMINISTRATOR and SUPERVISOR** — the same pair that can create/edit equipment. Technicians, Operators, Plant Managers, and Reliability Engineers never see the Archive button, and the Server Action independently rejects their dispatch.
+
+### Server action (`src/server/actions/equipment.ts`)
+
+- **`deleteEquipment(id)`** — `requirePermission(PERMISSIONS.equipmentDelete)` gate; loads the row; missing → `This equipment no longer exists.`; already archived → `This equipment has already been archived.` (idempotent re-archive is rejected, so the audit log never gets duplicate DELETE rows); otherwise one `prisma.$transaction`: `update` sets `deletedAt = new Date()`, then `writeAuditLog(tx, DELETE/EQUIPMENT, label = name snapshot)`. Revalidates `/equipment`, `/dashboard`, `/maintenance`, `/downtime`, `/reports`, and the equipment detail path; returns `{ ok: true }` (no redirect — the client navigates back to the registry).
+
+### Active-query filtering (archived ≠ active)
+
+- **Registry** — `listEquipment` (`src/server/equipment.ts`) now seeds its `where` with `{ deletedAt: null }`; the active list, its search, and its status filter all exclude archived assets.
+- **Dropdowns** — `listEquipmentsForSelect` (`src/server/maintenance.ts`) filters `deletedAt: null`, so the maintenance-schedule and downtime-record forms cannot pick an archived asset.
+- **Dashboard** — `getEquipmentStatusCounts` and `getEquipmentTotal` (`src/server/dashboard.ts`) count only `deletedAt: null` rows, so KPI cards match the active registry.
+- **Server-side action guards** — even a hand-crafted dispatch is rejected: `updateEquipment` (`This equipment has been archived and can no longer be edited.`), `createMaintenanceTask` and `updateMaintenanceTask` (`...can no longer be scheduled for maintenance.`), and `recordDowntimeEvent` (`...can no longer be used to record downtime.`) all check `deletedAt` on the target equipment before writing. No new writes can attach to archived assets.
+- **Historical access is preserved** — `getEquipmentById`, `getMaintenanceRecordById`, `getDowntimeEventById`, history/report queries, and the audit-log deep links all still resolve archived rows, so detail pages, history pages, and the audit trail keep working for archived equipment.
+
+### UI
+
+- **`/equipment/[id]` detail** — when `deletedAt` is set: the PageHeader description gains "· Archived", a gray banner ("This equipment has been archived. Its maintenance and downtime history remain available below, but it is no longer listed in the active registry and cannot be scheduled for new work.") renders under the header, and both **Edit** and **Archive** buttons are hidden (history stays visible to `maintenanceView` holders).
+- **`EquipmentArchiveButton`** (`src/components/equipment/equipment-archive-button.tsx`, client) — "Archive" outline button; on click it swaps to an inline confirmation ("Archive "name"?" + Confirm archive / Cancel) so a single tap can't destroy registry presence; on success it `router.push('/equipment')` + `router.refresh()`. Rendered only for `equipmentDelete` holders.
+- **Audit surface** — `AuditAction` gains `DELETE`; `src/components/audit/audit-badges.tsx` gets a red Deleted pill, `src/server/audit.ts` `ACTION_LABELS` maps it to `deleted` (so `describeAudit` renders `deleted equipment "..."`), `AUDIT_ACTIONS` in `src/lib/validations.ts` includes `DELETE` so the audit filter dropdown can select it, and the audit page's option labels map adds "Deleted".
+
+### Testing
+
+- **Unit** — `tests/unit/permissions.test.ts` expected set for SUPERVISOR now includes `equipmentDelete` (and the admin all-access + per-role exhaustive matrix still passes); `tests/unit/audit.test.ts` adds `describeAudit` for `DELETE` ("deleted equipment …") and asserts `auditFilterSchema` accepts `action: 'DELETE'`.
+- **Integration** (`tests/integration/equipment.test.ts`) — `deleteEquipment` archives instead of removing the row; writes a `DELETE/EQUIPMENT` audit entry with the name snapshot; second archive is rejected (idempotent); unknown id → `no longer exists`; `updateEquipment` on an archived asset is rejected. A new `archived equipment visibility` suite asserts the registry query, `getEquipmentById`, the selection dropdown, and dashboard counts all treat the archived row correctly. `tests/integration/maintenance.test.ts` + `tests/integration/downtime.test.ts` add dispatch-level tests that scheduling / editing / downtime recording against an archived asset is rejected.
+- **Runtime** (`scripts/verify-m14-runtime.ts` via `npm run verify:m14` against `next start`, real Auth.js jars, real Server-Action IDs): RBAC matrix check for `equipmentDelete`, a full archive round trip through the running server (create → Archive button visible to admin only → technician/operator never see it → supervisor archives → row soft-deleted → CREATE+DELETE audit rows → registry no longer lists it → detail page renders the archived banner and hides Archive/Edit → scheduling/downtime/edit against the archived id all rejected → audit page renders the DELETE filter).
+
+### Verification
+
+- `npm run lint` (0 problems), `npx tsc --noEmit`, `npm run build` all pass.
+- `npm test` passes end to end (unit + integration against `emms_test`).
+- `npm run verify:m14` — all assertions pass; cleanup removes the probe equipment rows and audit entries, restoring the dev DB seed state.
+
+### Known limitations
+
+- **No restore (un-archive) flow** — once archived, an asset stays archived; re-activating would require a direct DB update. Consistent with the no-delete/no-reopen posture elsewhere.
+- **Open work still holds FKs** — archiving an equipment with an open maintenance task or open downtime event is allowed (soft-delete keeps the references valid); the detail page still shows that historical context. A stricter "block archive while work is open" rule is a possible future refinement.
+- **No session revocation for deactivated users** remains from M13 (out of scope here).
+
+### Next milestone
+
+- Consider a **restore/re-activate** flow if business needs it; explore a **"block archive while OPEN work exists"** rule; and revisit downtime analytics (MTTR/MTBF) once data accrues.

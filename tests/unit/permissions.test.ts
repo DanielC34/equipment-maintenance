@@ -25,6 +25,7 @@ const EXPECTED: Record<Role, Permission[]> = {
     PERMISSIONS.equipmentView,
     PERMISSIONS.equipmentCreate,
     PERMISSIONS.equipmentEdit,
+    PERMISSIONS.equipmentDelete,
     PERMISSIONS.maintenanceView,
     PERMISSIONS.maintenanceSchedule,
     PERMISSIONS.maintenanceComplete,

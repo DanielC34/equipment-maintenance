@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Pencil, History, FileClock, TriangleAlert } from 'lucide-react';
+import { Archive, Pencil, History, FileClock, TriangleAlert } from 'lucide-react';
 import { PERMISSIONS, requirePermission, hasPermission } from '@/server/rbac';
 import { getEquipmentById } from '@/server/equipment';
 import { getEquipmentMaintenanceHistory } from '@/server/maintenance';
@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { SectionPlaceholder } from '@/components/section-placeholder';
 import { EquipmentStatusBadge } from '@/components/equipment/equipment-status-badge';
+import { EquipmentArchiveButton } from '@/components/equipment/equipment-archive-button';
 
 export async function generateMetadata({
   params,
@@ -44,7 +45,9 @@ export default async function EquipmentDetailPage({
   }
 
   const canEdit = hasPermission(session, PERMISSIONS.equipmentEdit);
+  const canDelete = hasPermission(session, PERMISSIONS.equipmentDelete);
   const canViewHistory = hasPermission(session, PERMISSIONS.maintenanceView);
+  const isArchived = Boolean(equipment.deletedAt);
 
   const history = canViewHistory
     ? await getEquipmentMaintenanceHistory(equipment.id, 1)
@@ -57,7 +60,11 @@ export default async function EquipmentDetailPage({
     <div className="space-y-6">
       <PageHeader
         title={equipment.name}
-        description={`${equipment.assetNumber} · ${equipment.factory.name}`}
+        description={
+          isArchived
+            ? `${equipment.assetNumber} · ${equipment.factory.name} · Archived`
+            : `${equipment.assetNumber} · ${equipment.factory.name}`
+        }
         actions={
           <div className="flex items-center gap-2">
             {canViewHistory ? (
@@ -68,7 +75,7 @@ export default async function EquipmentDetailPage({
                 </Button>
               </Link>
             ) : null}
-            {canEdit ? (
+            {canEdit && !isArchived ? (
               <Link href={`/equipment/${equipment.id}/edit`}>
                 <Button variant="outline">
                   <Pencil aria-hidden />
@@ -76,9 +83,24 @@ export default async function EquipmentDetailPage({
                 </Button>
               </Link>
             ) : null}
+            {canDelete && !isArchived ? (
+              <EquipmentArchiveButton
+                equipmentId={equipment.id}
+                equipmentName={equipment.name}
+              />
+            ) : null}
           </div>
         }
       />
+
+      {isArchived ? (
+        <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+          <Archive aria-hidden className="size-4 text-gray-500" />
+          This equipment has been archived. Its maintenance and downtime
+          history remain available below, but it is no longer listed in the
+          active registry and cannot be scheduled for new work.
+        </div>
+      ) : null}
 
       <div className="rounded-xl border border-gray-200 bg-white">
         <dl className="grid gap-x-6 gap-y-4 p-6 sm:grid-cols-2">

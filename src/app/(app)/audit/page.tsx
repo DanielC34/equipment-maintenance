@@ -27,6 +27,7 @@ const ACTION_OPTION_LABELS: Record<string, string> = {
   START: 'Started',
   COMPLETE: 'Completed',
   RESOLVE: 'Resolved',
+  DELETE: 'Deleted',
 };
 
 const ENTITY_OPTION_LABELS: Record<string, string> = {

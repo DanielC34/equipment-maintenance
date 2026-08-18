@@ -95,6 +95,7 @@ export const ACTION_LABELS: Record<AuditAction, string> = {
   START: 'started',
   COMPLETE: 'completed',
   RESOLVE: 'resolved',
+  DELETE: 'deleted',
 }
 
 export const ENTITY_TYPE_LABELS: Record<AuditEntityType, string> = {

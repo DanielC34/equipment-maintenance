@@ -283,6 +283,7 @@ export const AUDIT_ACTIONS = [
   'START',
   'COMPLETE',
   'RESOLVE',
+  'DELETE',
 ] as const;
 
 export const AUDIT_ENTITY_TYPES = [

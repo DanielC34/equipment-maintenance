@@ -78,6 +78,13 @@ describe('describeAudit', () => {
         entityLabel: 'Hydraulic Press · HPR-004',
       })
     ).toBe('resolved downtime event "Hydraulic Press · HPR-004"');
+    expect(
+      describeAudit({
+        action: 'DELETE',
+        entityType: 'EQUIPMENT',
+        entityLabel: 'CNC Milling Machine',
+      })
+    ).toBe('deleted equipment "CNC Milling Machine"');
   });
 
   it('falls back to the entity type label when no label is stored', () => {
@@ -125,6 +132,11 @@ describe('auditFilterSchema', () => {
     });
     expect(parsed.action).toBe('START');
     expect(parsed.entityType).toBe('DOWNTIME_EVENT');
+  });
+
+  it('accepts the DELETE audit action', () => {
+    const parsed = auditFilterSchema.parse({ action: 'DELETE' });
+    expect(parsed.action).toBe('DELETE');
   });
 
   it('coerces an invalid enum filter to undefined instead of failing', () => {

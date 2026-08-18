@@ -27,6 +27,7 @@ export async function getEquipmentStatusCounts(): Promise<
 > {
   const rows = await prisma.equipment.groupBy({
     by: ['status'],
+    where: { deletedAt: null },
     _count: { _all: true },
   });
   const counts = { ...EQUIPMENT_START } as Record<EquipmentStatus, number>;
@@ -37,7 +38,7 @@ export async function getEquipmentStatusCounts(): Promise<
 }
 
 export async function getEquipmentTotal(): Promise<number> {
-  return prisma.equipment.count();
+  return prisma.equipment.count({ where: { deletedAt: null } });
 }
 
 export async function getMaintenanceStatusCounts(): Promise<
