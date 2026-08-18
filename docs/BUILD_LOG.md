@@ -984,3 +984,94 @@ Post-run `psql` on `emms_dev`: `AuditLog`=0, exactly seed counts everywhere else
 ### Next milestone
 
 - **User administration** (the `/admin` placeholder): create/deactivate users, assign roles, and audit those user-management actions — which completes the "against … users" coverage the BUILD_LOG's earlier notes called for. Also revisit downtime analytics (MTTR/MTBF) and dashboard optimisations once data accrues.
+
+---
+
+## Milestone 13 — User Administration
+
+**Goal**: replace the `/admin` placeholder with real user management — list/search/filter/paginate users, create users, and manage roles and **account status** (deactivation/reactivation). Deactivated users can no longer sign in and are no longer assignable to maintenance work. A new **`usersManage`** permission (ADMINISTRATOR only) gates the whole surface, and every successful user mutation writes an **`AuditLog`** row (`CREATE`/`UPDATE`, `entityType = USER`) in the same transaction as the write (closing the M12 "user-management actions are not audited" gap).
+
+### Schema / enums
+
+- **`User.active Boolean @default(true)`** — the account-status flag; existing rows default to `true` (a backfill of the column with `true` is part of the migration so no seeded account is ever born inactive).
+- **`AuditEntityType`** extended with **`USER`** for the audit trail; `AuditAction` unchanged (`CREATE`/`UPDATE` cover create + role/status edits).
+- Migration `20260818000000_add_user_active` created via `prisma migrate dev --create-only`, renamed to the canonical `YYYYMMDD000000` pattern, applied with `prisma migrate deploy`, `prisma generate` re-run. Verified in `psql` (`active` column, enum label `USER`).
+
+### Validation (`src/lib/validations.ts`)
+
+- **`userCreateSchema`**: `name` trimmed 1–120; `email` trimmed → `z.email` → **lowercased** (login `email` lookups are case-sensitive, so emails are normalized to lowercase at the single creation point); `role` must be a `USER_ROLES` value; `password` 8–128. `active` is **not** part of the schema — a user is always created active and a client-supplied `active` is stripped by zod.
+- **`userUpdateSchema`**: `role` enum + `active` boolean, both required.
+- **`userFilterSchema`**: `q` trimmed ≤200 (catch → `''`); optional `role` (enum-or-empty → `undefined`); optional `active` (`true`/`false` strings → boolean, empty/invalid → `undefined`); `page` coerced int ≥1 (catch → 1).
+- **`loginSchema`** unchanged shape but the email now lowercases for the lookup.
+
+### Data access (`src/server/users.ts`)
+
+- `USERS_PAGE_SIZE = 20`.
+- **`listUsers(filter)`** — combined search (`q` OR-case-insensitive across name/email), optional `role` and `active` filters, name-asc ordering, `skip`/`take` pagination, `{ items, total, page, pageSize, totalPages }`. `active` is always selected so the UI can render status badges.
+- **`getUserById(id)`** — detail select (id/name/email/role/active/createdAt/updatedAt); `null` for unknown ids.
+
+### Safety rules (`src/server/user-safety.ts`)
+
+- **`userUpdateConflict(actorId, target, next, otherActiveAdmins)`** — a pure, unit-testable guard that returns an error string or `null`:
+  - **Self rules** (actor is the target): cannot deactivate your own account; cannot remove your own Administrator role.
+  - **Last-admin rule**: if the target is an *active administrator* and the change would demote **or** deactivate them while **zero other active administrators** remain, reject with `The system must keep at least one active administrator.`
+  - In practice the self-rules cover the reachable interactive cases (the actor is always an active admin, so the external count is ≥ 1); the last-admin branch is a defensive net for direct/edge dispatch.
+
+### Server actions (`src/server/actions/users.ts`)
+
+- **`createUser(values)`** — `requirePermission(PERMISSIONS.usersManage)` gate; server-side re-validation; `prisma.$transaction`: `bcrypt.hash(password, 10)`, create with `active: true`, `writeAuditLog(tx, CREATE/USER, actor = session.user.id, label = name)`; revalidate + `redirect()` to the detail page. Duplicate email (`P2002`) and validation failures return `{ ok:false, error }` **before** the transaction — no user row, no audit row.
+- **`updateUser(id, values)`** — same gate; inside one `prisma.$transaction`: load target (missing → `This user no longer exists.`), count other active admins, run `userUpdateConflict`, then update role/active and `writeAuditLog(tx, UPDATE/USER, label = name snapshot)`; returns `{ ok: true }` on success. Both paths revalidate `/admin/users` (+ the detail path on update).
+
+### Auth & maintenance integration
+
+- **`src/auth.ts`** — Credentials `authorize` now rejects `!user.active` (return `null`) *after* password-present check and *before* bcrypt compare; a deactivated account can no longer sign in.
+- **`src/server/maintenance.ts`** — `listAssignableUsers` already filtered by `active`; `userCanBeAssigned` additionally short-circuits `!user.active → false`, so deactivated users disappear from assignment dropdowns and the `create/updateMaintenanceTask` actions reject them server-side.
+
+### Permission / RBAC
+
+- **`usersManage: 'users:manage'`** added to `PERMISSIONS` and granted **only to ADMINISTRATOR** (`src/lib/permissions.ts:26`). The `/admin` and `/admin/users` routes, the "Users" nav item, and both actions gate on it.
+
+### UI / routes
+
+- **Nav** (`src/lib/navigation.ts`): the "Administration" section now has a **Users** item (Users icon, `usersManage` permission) alongside Audit Log.
+- **`/admin`** (`src/app/(app)/admin/page.tsx`) — **redirects** to `/admin/users` (admins land directly in user management).
+- **`/admin/users`** list — `requirePermission(usersManage)`; GET filter form (search box, role dropdown, status dropdown, Search/Clear), table (name+email, role label, status badge, created date, actions), pagination with the established clamp, and empty states ("No users yet" / "No users match your filters").
+- **`/admin/users/new`** — `UserForm` client component (react-hook-form + zodResolver): name, email, role select, password (+ show/hide), server-error banner, field-level errors.
+- **`/admin/users/[id]`** — read-only detail: name (with "(you)" marker for self), email, role, status badge, created date, "Edit" action; `notFound()` for unknown ids.
+- **`/admin/users/[id]/edit`** — `UserEditForm`: role select + active checkbox (checked = active), gated on `updateUser` result; "Back to user" link. `isSelf` is passed for UI context but enforcement lives in `userUpdateConflict`.
+- **Badges** — `src/components/users/user-role-badge.tsx` and `user-status-badge.tsx` (role-colored pills + emerald "Active"/slate "Inactive"); `src/lib/roles.ts` `ROLE_LABELS` map.
+
+### Design decisions
+
+- **Deactivation over deletion** — consistent with every other module (no DELETE flows) and with the audit trail ("who did what" must keep referencing a stable actor row).
+- **Email normalization at creation** — the single write path lowercases; login lowercases too, so `Admin@EMMS.dev` always resolves to the same account.
+- **A user is created active** by design; `active` is an **update** concern only (schema enforces this by omission).
+- **Audit label = name snapshot** — renames (there are none today) wouldn't rewrite history; the label stays the name as of the mutation.
+- **All-user actor dropdown** on the audit page (`listAuditActors` deliberately kept unfiltered by `active` — you must be able to filter *by a now-deactivated actor*).
+
+### Testing
+
+- **Unit** (`tests/unit/users.test.ts`, 22 tests): `userCreateSchema` (valid, normalization, invalid email/name/role/password), `userUpdateSchema`, `userFilterSchema` (defaults, boolean mapping, page coercion, trimming), `loginSchema` normalization, `userUpdateConflict` (self-deactivate, self-demote, no-op, last-admin demote/deactivate block, allow-with-another-admin, non-admin edits), and `usersManage` ADMINISTRATOR-only.
+- **Integration** (`tests/integration/users.test.ts`, 15 tests against `emms_test`): `listUsers` search/role/status filters, pagination, no password-hash leak; `createUser` action (hashed password verified via `bcrypt.compare`, `active: true`, CREATE/USER audit with session actor, email/name normalization, client-supplied `active` ignored, duplicate-email rejection with no audit row), `updateUser` (role change + UPDATE audit, deactivate hides from `listAssignableUsers` + `userCanBeAssigned` false + reactivate restores, self-deactivate/self-demote blocked with no audit row, other-admin deactivation allowed, last-admin demote/deactivate blocked via a non-admin session against the last active admin, missing-user error, non-boolean `active` rejected), and an `authorize`-level login-gating test (active signs in, deactivated returns `null`, reactivated signs in again). Fixture note: users are created via direct `prisma.user.create` with per-call unique emails because the shared `createUser(role, name)` fixture derives identical emails within a process (a latent collision the other suites only avoided by using distinct roles).
+- **Runtime** (`scripts/verify-m13-runtime.ts` via `npm run verify:m13` against `next start` with real Auth.js jars + real Server-Action IDs from `server-reference-manifest.json`): authz boundaries (`/admin`→`/admin/users`, anon→login, five non-admin roles denied on `/admin*`), role/page matrix incl. `/admin` handling, create-action round trip (redirect, hashed password, active row, normalized email, CREATE/USER audit with seed-admin actor, detail + edit pages render, mixed-case email normalization, duplicate rejected, invalid rejected), update-action round trip (role change + UPDATE audit, deactivate → assignment-list exclusion on `/maintenance/new` + `createMaintenanceTask` rejection, reactivate → re-listed), self-guardrails (self-deactivate + self-demote blocked, seed admin unchanged), login gating (active user in → deactivated cannot sign in → reactivated signs in), list UI (search/role/status filters, no-match empty state, new-user page), and an admin regression sweep over every static route.
+
+### Verification
+
+`npm run lint` (0 problems), `npx tsc --noEmit`, and `npm run build` all pass — the build route table now lists the four new `/admin/users` routes (list, new, detail, edit) alongside `/admin` (which redirects into the module) and the existing modules. `npm test` passes end to end:
+
+- **Unit**: 116 tests across 6 files (22 new for users).
+- **Integration**: 94 tests across 6 files (15 new for users) against `emms_test`; all pass.
+- **Runtime**: `npm run verify:m13` against the production build — **120 passed, 0 failed**; cleanup restored the dev DB (probe users, their maintenance attempts, and audit rows removed; seeded data untouched).
+
+### Known limitations
+
+- **Existing sessions are not revoked on deactivation** — Auth.js JWTs are stateless; a deactivated user's *current* session stays valid until expiry. New sign-ins are blocked immediately (verified). Full revocation (session versioning / BigRevoke) is out of scope.
+- **The last-active-administrator rule is a pure-guard net** — because the acting session is always an active admin, the interactive UI can never reach the zero-active-admins state through `updateUser` alone (the self-rules fire first); the branch is unit + integration tested via direct dispatch.
+- **No password reset / own-password change flows** — creation sets the initial password; nothing lets a user change it (consistent with the no-profile feature).
+- **No delete of users** (by design — matches the module-wide "no DELETE" posture and the audit trail's stable actor references).
+- **Audit actor dropdown includes inactive users intentionally** (documented above).
+- User creation is exact-email-duplicate-rejected (P2002); no case-insensitivity on stored emails beyond the create-time normalization.
+
+### Next milestone
+
+- **Equipment deletion (PRD FR-012)** with a `DELETE` audit action; revoke-session hardening for deactivated accounts (session versioning); and revisit downtime analytics (MTTR/MTBF) once data accrues.

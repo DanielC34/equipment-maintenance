@@ -231,6 +231,7 @@ export async function listEquipmentsForSelect() {
 
 export async function listAssignableUsers() {
   const users = await prisma.user.findMany({
+    where: { active: true },
     select: { id: true, name: true, role: true },
     orderBy: { name: 'asc' },
   });
@@ -242,9 +243,9 @@ export async function listAssignableUsers() {
 export async function userCanBeAssigned(userId: string): Promise<boolean> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, role: true },
+    select: { id: true, role: true, active: true },
   });
-  if (!user) {
+  if (!user || !user.active) {
     return false;
   }
   return roleHasPermission(user.role as Role, PERMISSIONS.maintenanceComplete);

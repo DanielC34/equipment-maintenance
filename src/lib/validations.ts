@@ -4,7 +4,8 @@ export const loginSchema = z.object({
   email: z
     .string()
     .trim()
-    .pipe(z.email({ error: 'Enter a valid email address.' })),
+    .pipe(z.email({ error: 'Enter a valid email address.' }))
+    .transform((value) => value.toLowerCase()),
   password: z.string().min(1, { error: 'Password is required.' }),
 });
 
@@ -289,6 +290,7 @@ export const AUDIT_ENTITY_TYPES = [
   'MAINTENANCE_TASK',
   'MAINTENANCE_RECORD',
   'DOWNTIME_EVENT',
+  'USER',
 ] as const;
 
 export const auditFilterSchema = z.object({
@@ -328,3 +330,58 @@ export const auditFilterSchema = z.object({
 });
 
 export type AuditFilterValues = z.infer<typeof auditFilterSchema>;
+
+export const USER_ROLES = [
+  'ADMINISTRATOR',
+  'SUPERVISOR',
+  'TECHNICIAN',
+  'OPERATOR',
+  'PLANT_MANAGER',
+  'RELIABILITY_ENGINEER',
+] as const;
+
+export const userCreateSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, { error: 'User name is required.' })
+    .max(120),
+  email: z
+    .string()
+    .trim()
+    .pipe(z.email({ error: 'Enter a valid email address.' }))
+    .transform((value) => value.toLowerCase()),
+  role: z.enum(USER_ROLES, { error: 'Role is required.' }),
+  password: z
+    .string()
+    .min(8, { error: 'Password must be at least 8 characters.' })
+    .max(128, { error: 'Password must be at most 128 characters.' }),
+});
+
+export type UserCreateValues = z.infer<typeof userCreateSchema>;
+
+export const userUpdateSchema = z.object({
+  role: z.enum(USER_ROLES, { error: 'Role is required.' }),
+  active: z.boolean({ error: 'Status must be active or inactive.' }),
+});
+
+export type UserUpdateValues = z.infer<typeof userUpdateSchema>;
+
+export const ACTIVE_FILTERS = ['true', 'false'] as const;
+
+export const userFilterSchema = z.object({
+  q: z.string().trim().max(200).catch(''),
+  role: z
+    .enum(USER_ROLES)
+    .or(z.literal(''))
+    .transform((value) => (value === '' ? undefined : value))
+    .catch(undefined),
+  active: z
+    .enum(ACTIVE_FILTERS)
+    .or(z.literal(''))
+    .transform((value) => (value === '' ? undefined : value === 'true'))
+    .catch(undefined),
+  page: z.coerce.number().int().min(1).catch(1),
+});
+
+export type UserFilterValues = z.infer<typeof userFilterSchema>;

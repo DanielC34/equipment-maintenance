@@ -64,6 +64,7 @@ enum AuditEntityType {
   MAINTENANCE_TASK
   MAINTENANCE_RECORD
   DOWNTIME_EVENT
+  USER
 }
 
 model User {
@@ -72,6 +73,7 @@ model User {
   email     String   @unique
   password  String?
   role      Role     @default(OPERATOR)
+  active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

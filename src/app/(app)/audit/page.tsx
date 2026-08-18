@@ -34,6 +34,7 @@ const ENTITY_OPTION_LABELS: Record<string, string> = {
   MAINTENANCE_TASK: 'Maintenance task',
   MAINTENANCE_RECORD: 'Maintenance record',
   DOWNTIME_EVENT: 'Downtime event',
+  USER: 'User',
 };
 
 const inputClass =
@@ -63,6 +64,8 @@ function entityHref(
       return `/maintenance/history/${entityId}`;
     case 'DOWNTIME_EVENT':
       return `/downtime/${entityId}`;
+    case 'USER':
+      return `/admin/users/${entityId}`;
     default:
       return null;
   }
