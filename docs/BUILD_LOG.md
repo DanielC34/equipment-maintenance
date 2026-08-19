@@ -112,7 +112,7 @@ Docker was introduced to provide a consistent, isolated, and easily reproducible
 
 ### What services are running
 
-- **PostgreSQL 15** (`emms_postgres`): Primary relational database, source of truth for all business data. Exposed on port `5432`. Data persisted to `emms_pgdata` Docker volume.
+- **PostgreSQL 15** (`emms_postgres`): Primary relational database, source of truth for all business data. Exposed on host port `5433` (mapped to the container's `5432`). Data persisted to `emms_pgdata` Docker volume.
 - **Redis 7** (`emms_redis`): In-memory data store for future caching and session needs. Exposed on port `6379`. Data persisted to `emms_redisdata` Docker volume.
 
 ### How PostgreSQL connects to Prisma
@@ -120,7 +120,7 @@ Docker was introduced to provide a consistent, isolated, and easily reproducible
 Prisma reads the `DATABASE_URL` from the `.env` file (based on `.env.example`). The URL points to the Docker container:
 
 ```
-DATABASE_URL="postgresql://postgres:password@localhost:5432/emms_dev?schema=public"
+DATABASE_URL="postgresql://postgres:password@localhost:5433/emms_dev?schema=public"
 ```
 
 The `prisma.config.ts` file reads this variable and passes it to Prisma Migrate.
@@ -327,8 +327,8 @@ No schema, model, migration, Docker, or application-architecture changes were ma
 
 ### How the database connection now works
 
-- The Prisma CLI loads `.env` explicitly via `import 'dotenv/config'` inside `prisma.config.ts`, so `env('DATABASE_URL')` resolves `postgresql://postgres:password@localhost:5432/emms_dev?schema=public`.
-- The URL matches `docker-compose.yml`: `POSTGRES_USER=postgres`, `POSTGRES_PASSWORD=password`, `POSTGRES_DB=emms_dev`, port `5432`.
+- The Prisma CLI loads `.env` explicitly via `import 'dotenv/config'` inside `prisma.config.ts`, so `env('DATABASE_URL')` resolves `postgresql://postgres:password@localhost:5433/emms_dev?schema=public`.
+- The URL matches `docker-compose.yml`: `POSTGRES_USER=postgres`, `POSTGRES_PASSWORD=password`, `POSTGRES_DB=emms_dev`, host port `5433` (mapped to the container's `5432`).
 - Runtime application code (`src/lib/prisma.ts`) and the seed use the `PrismaPg` driver adapter required by Prisma 7 (Next.js auto-loads `.env`; the seed loads it explicitly via `dotenv/config`).
 
 ### Commands used to verify
@@ -1194,3 +1194,50 @@ Post-run `psql` on `emms_dev`: `AuditLog`=0, exactly seed counts everywhere else
 ### Next milestone
 
 - Production-grade deployment hardening (per PRD V2): report **exports**, deeper downtime analytics (OEE/MTBF), a **restore** flow, and background processes — each noted in the roadmap but outside this milestone.
+
+---
+
+## Milestone 16 — Production Deployment (preparation)
+
+**Goal**: implement **Phase 10 (Production Deployment)** of the roadmap: prepare the repository for hosting on **Vercel** (application) with **PostgreSQL and Redis on Railway**, matching PRD §12 and Session 8 of the learning handbook. The owner executes the actual cloud provisioning; this milestone ships every code-side and documentation-side prerequisite plus the verification harness. New items approved with the owner: 24-hour session lifetime (PRD §16) enforced in code; no optional extras (security headers, GitHub Actions CI job, custom domain deferred).
+
+### Deployment runbook (`docs/DEPLOYMENT.md`, new)
+
+- Canonical runbook: target architecture (Vercel app + Railway PostgreSQL + Railway Redis), the exact environment-variable table (`DATABASE_URL`, `REDIS_URL`, `AUTH_SECRET`, `NEXTAUTH_URL`), one-time provisioning steps, the Vercel auto-deploy pipeline, production-migration steps (`prisma migrate deploy`, never `migrate dev`/`reset`), the production-seed hazard (`seed.ts` wipes tables + known `password123`), a Session 8 production checklist, a backups/restore runbook (Railway daily backups + a `pg_dump`/`pg_restore` drill; Redis explicitly not backed up by design), and a Definition of Done checklist.
+
+### Build/runtime hardening
+
+- `package.json` — `"postinstall": "prisma generate"` (guarded with `|| echo`, since Prisma 7 requires `DATABASE_URL` to resolve `prisma.config.ts` — generation runs on Vercel where the env var is set, while a fresh local `npm install` before `.env` exists logs a skip note instead of failing; a missing client still fails the later build); `"engines": { "node": ">=20.9.0" }` matching Next.js's declared engine floor; `verify:m16` script alias.
+- `src/auth.ts` — `session.maxAge: 24 * 60 * 60` (one day), enforcing the **PRD §16 session-token lifetime** that the previous 30-day NextAuth JWT default did not match.
+- `src/app/api/health/route.ts` (new) — unauthenticated `GET /api/health`: runs `SELECT 1` through Prisma; returns `{ status: 'ok', db: 'ok', timestamp }` (200) or `{ status: 'degraded', db: 'error' }` (503); `dynamic = 'force-dynamic'` so it is never statically cached.
+- `src/app/error.tsx`, `src/app/global-error.tsx`, `src/app/not-found.tsx` (new, Next 16 conventions) — root segment error boundary (matching the existing equipment/maintenance segment files), Global Error UI that replaces the root layout on layout-depth crashes (must own `<html>/<body>`, per the installed `error.js` docs), and a friendly 404 page wired for unmatched URLs.
+- `.env.example` — replaced the dev-only `NEXTAUTH_URL` comment with the production (Vercel/Railway) guidance.
+
+### Documentation
+
+- `README.md` — "Completed/Planned" capabilities, the Development Roadmap (Milestones 1–15 complete, Phase 10 current), Current Status, and the Engineering Documentation list now reflect reality and link to `docs/DEPLOYMENT.md`.
+
+### Verification
+
+- `npm run lint` (0 problems), `npx tsc --noEmit`, `npm run build` all pass; the build route table includes the new `/api/health` route.
+- `npm test` unchanged and green (unit 123/123, integration 110/110) — no behavior changed outside auth session lifetime and error docs.
+- `npm run verify:m16` (`scripts/verify-m16-runtime.ts`) against a local `next start` build: `/api/health` renders `{status:'ok',db:'ok'}` (200) and again after a full auth cycle; the auth-aware root `/` redirects anonymous users to `/login` and `/login` renders; anonymous `/dashboard` redirects to `/login`; admin sign-in succeeds and the session-token cookie **expires ≈ 24 h** after issue (confirming PRD §16); an *authenticated* unknown URL returns **404 with the custom not-found UI** (the middleware guards every non-`/login` path, so anonymous unknowns redirect to sign-in rather than 404 — the not-found page is exercised with a session). **12/12 pass.** The script also runs against a live URL via `VERIFY_BASE_URL` + `--skip-build` for the deployed verification pass.
+
+### Outstanding (owner actions, code side complete)
+
+- Create the Railway project with PostgreSQL + Redis (`DATABASE_URL`, `REDIS_URL`).
+- Import the repo on Vercel; set `DATABASE_URL`, `REDIS_URL`, `AUTH_SECRET`, `NEXTAUTH_URL` (encrypted, Preview + Production scope).
+- First deploy; run `prisma migrate deploy` against production; confirm `prisma migrate status` is up to date.
+- Seed only an empty production DB, then **rotate the admin password** (documented SQL path) — the app has no change-password flow by design.
+- Configure HTTPS (Vercel default) and confirm Railway daily backups; run the documented `pg_dump`/`pg_restore` drill once.
+- Run `VERIFY_BASE_URL=<live> npm run verify:m16 -- --skip-build` and confirm all checks against the deployed URL.
+
+### Known limitations
+
+- **No CI job** — verification relies on the Vercel pipeline (lint/typecheck/build) plus the repo's own suites; a GitHub Actions test job was explicitly deferred.
+- **No security headers/config extras** — deferred with the owner's approval; `next.config.ts` remains empty.
+- **Session revocation still absent** — unrevoked stateless JWTs live out their (now 24-hour) lifetime when a user is deactivated (unchanged from M13; revocation remains out of scope).
+
+### Next milestone
+
+- Execute the outstanding provisioning/verification steps above to complete Phase 10, then begin the PRD-V2 backlog: report **exports**, deeper downtime analytics (OEE/MTBF), equipment **restore**, and background processes.

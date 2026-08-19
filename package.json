@@ -2,7 +2,11 @@
   "name": "next-app",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
+    "postinstall": "prisma generate || echo \"[postinstall] skipped 'prisma generate' - DATABASE_URL is required for Prisma 7. Create .env and run 'npx prisma generate'.\"",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -21,6 +25,7 @@
     "verify:m13": "npx tsx scripts/verify-m13-runtime.ts",
     "verify:m14": "npx tsx scripts/verify-m14-runtime.ts",
     "verify:m15": "npx tsx scripts/verify-m15-runtime.ts",
+    "verify:m16": "npx tsx scripts/verify-m16-runtime.ts",
     "load:m15": "npx tsx scripts/load-test-m15.ts",
     "test:db:setup": "tsx scripts/test-db.ts"
   },

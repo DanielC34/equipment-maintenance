@@ -33,6 +33,16 @@ function run(command: string, args: string[], env: NodeJS.ProcessEnv): void {
 async function main(): Promise<void> {
   const testUrl = getTestDatabaseUrl();
   await createDatabaseIfMissing();
+
+  const wipe = new Client({ connectionString: testUrl });
+  await wipe.connect();
+  try {
+    await wipe.query('DROP SCHEMA IF EXISTS public CASCADE');
+    await wipe.query('CREATE SCHEMA public');
+  } finally {
+    await wipe.end();
+  }
+
   run('npx', ['prisma', 'migrate', 'deploy'], {
     ...process.env,
     DATABASE_URL: testUrl,

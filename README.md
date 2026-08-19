@@ -27,25 +27,25 @@ Completed and planned work is deliberately separated. Nothing marked **Planned**
 
 ### Completed
 
-- **Authentication** — secure sign-in with session management (Auth.js), with passwords hashed on the server.
+- **Authentication** — secure sign-in with session management (Auth.js), with passwords hashed on the server and 24-hour sessions.
 - **Role-based access control** — a centralized permission model mapping the six roles to granular permissions, enforced on every action.
 - **Application shell & navigation** — a consistent, responsive application layout and navigation structure.
 - **Equipment Registry**
   - Equipment listing with search and filtering
   - Equipment detail views with full history context
   - Create and edit equipment records
+  - Soft-archive (deletion) with a retained history
   - Server-side authorization on every view and mutation
+- **Maintenance Management** — scheduling, tracking, and completion of maintenance work with full history.
+- **Downtime Tracking** — recording and resolving operational downtime events against equipment.
+- **Dashboards** — metrics and KPIs over equipment, maintenance, and downtime.
+- **Reports & Analytics** — maintenance and downtime reporting over the operational data.
+- **Performance & Scalability** — cached dashboard/report aggregates (Redis) with best-effort fallback and targeted database indexes.
+- **Production Deployment** — Vercel (application) with PostgreSQL and Redis on Railway; see [deployment guide](./docs/DEPLOYMENT.md).
 
 ### Planned
 
-- Maintenance scheduling
-- Maintenance completion and records
-- Maintenance history
-- Downtime tracking
-- Dashboards
-- Reports and analytics
-- Performance and scalability refinement
-- Production deployment
+- Advanced analytics and reporting surface: report **exports**, production-loss/OEE/MTBF metrics, and background processes — each deferred from the Phase 10 milestone.
 
 ## Architecture
 
@@ -106,15 +106,12 @@ EMMS is designed around the shape of real manufacturing work rather than generic
 
 The project is built incrementally, milestone by milestone, with each delivered in a reviewable state:
 
-- **Milestones 1–2 — Foundation & Database** (complete): project setup and the initial relational database design.
-- **Milestone 3 — Authentication & RBAC** (complete): sign-in, sessions, and the centralized role/permission model.
-- **Milestone 4 — Application Shell** (complete): the application layout and navigation structure.
-- **Milestone 5 — Equipment Registry** (complete): machinery register with search, detail views, and CRUD behind server-side authorization.
-- **Milestone 6+ — Maintenance Management** (next): scheduling, completion, and maintenance records for equipment.
-- **Future — Downtime Tracking** (planned)
-- **Future — Dashboards & Reports** (planned)
-- **Future — Performance & Scalability** (planned)
-- **Future — Production Deployment** (planned)
+- **Milestones 1–4 — Foundation, Database, Auth, Shell** (complete): project setup, relational database design, sign-in/RBAC, and the application layout.
+- **Milestones 5–9 — Equipment, Maintenance, Downtime, Dashboards, Reports** (complete): the equipment registry, maintenance lifecycle, downtime workflow, and operational analytics behind server-side authorization.
+- **Milestone 10+ — Hardening** (complete): test suites (unit, integration, runtime), performance/indexing, caching, and user administration.
+- **Milestone 15 — Performance & Scalability** (complete): Redis-backed dashboard/report aggregates with mutation invalidation.
+- **Milestone 16 — Production Deployment** (current): Vercel + Railway rollout per the [deployment guide](./docs/DEPLOYMENT.md).
+- **Future expansion** (planned): report exports, deeper downtime analytics (OEE/MTBF), and background processes.
 
 Completed and upcoming work are kept distinct; the roadmap reflects what is delivered versus what remains.
 
@@ -126,13 +123,14 @@ Alongside the application code, the repository contains the engineering trail be
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md) — architectural principles, decisions, and ADRs
 - [IMPLEMENTATION_ROADMAP.md](./IMPLEMENTATION_ROADMAP.md) — the implementation plan
 - [BUILD_LOG.md](./docs/BUILD_LOG.md) — implementation history, including environment setup
+- [DEPLOYMENT.md](./docs/DEPLOYMENT.md) — production deployment runbook (Vercel + Railway)
 - [learning/](./docs/learning/) — a 15-session learning handbook documenting the reasoning behind each part of the system
 
 These documents explain not just what was built, but why it was built that way.
 
 ## Current Status
 
-EMMS is actively being built incrementally. At the time of writing, **Milestones 1–5 are complete**, including the functional Equipment Registry with search, detail views, and server-side-authorized create and edit. The overall application is **not** complete: maintenance management, downtime tracking, dashboards, reporting, and production deployment remain future work.
+EMMS is feature-complete for its MVP roadmap through Phase 9 and is in **Phase 10 (Production Deployment)**. Milestones 1–15 are complete: authentication and RBAC, the equipment registry (with soft-archive), maintenance management, downtime tracking, dashboards, reports, user administration, a full test suite (unit/integration/runtime), and performance hardening with cached aggregates. The remaining work is production rollout on Vercel with PostgreSQL and Redis on Railway, documented in [DEPLOYMENT.md](./docs/DEPLOYMENT.md); future expansion (report exports, OEE/MTBF analytics, background processes) is tracked separately.
 
 ## Development Philosophy
 
