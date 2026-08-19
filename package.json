@@ -20,6 +20,8 @@
     "pretest:integration": "npm run test:db:setup",
     "verify:m13": "npx tsx scripts/verify-m13-runtime.ts",
     "verify:m14": "npx tsx scripts/verify-m14-runtime.ts",
+    "verify:m15": "npx tsx scripts/verify-m15-runtime.ts",
+    "load:m15": "npx tsx scripts/load-test-m15.ts",
     "test:db:setup": "tsx scripts/test-db.ts"
   },
   "dependencies": {
@@ -30,6 +32,7 @@
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "ioredis": "^6.0.0",
     "lucide-react": "^1.28.0",
     "next": "16.3.0",
     "next-auth": "^4.24.15",

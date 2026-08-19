@@ -110,6 +110,8 @@ model Equipment {
   maintenanceTasks   MaintenanceTask[]
   maintenanceRecords MaintenanceRecord[]
   downtimeEvents     DowntimeEvent[]
+
+  @@index([name])
 }
 
 model MaintenanceTask {
@@ -127,6 +129,8 @@ model MaintenanceTask {
   updatedAt      DateTime          @updatedAt
 
   maintenanceRecord MaintenanceRecord?
+
+  @@index([status, scheduledDate])
 }
 
 model MaintenanceRecord {
@@ -146,6 +150,7 @@ model MaintenanceRecord {
 
   @@index([completedDate])
   @@index([equipmentId, completedDate])
+  @@index([technicianId, completedDate])
 }
 
 model PartUsed {

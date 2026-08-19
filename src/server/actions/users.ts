@@ -14,6 +14,7 @@ import {
   type UserUpdateValues,
 } from '@/lib/validations';
 import { writeAuditLog } from '@/server/audit';
+import { invalidateAggregateCaches } from '@/lib/cache';
 import { userUpdateConflict } from '@/server/user-safety';
 
 export type UserActionResult =
@@ -78,6 +79,7 @@ export async function createUser(
     });
 
     revalidatePath('/admin/users');
+    await invalidateAggregateCaches();
     redirect(`/admin/users/${user.id}`);
   } catch (error) {
     if (isUniqueConstraintError(error)) {
@@ -149,6 +151,7 @@ export async function updateUser(
   if (outcome.ok) {
     revalidatePath('/admin/users');
     revalidatePath(`/admin/users/${id}`);
+    await invalidateAggregateCaches();
   }
 
   return outcome;

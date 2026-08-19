@@ -11,6 +11,7 @@ import {
   type EquipmentFormValues,
 } from '@/lib/validations';
 import { writeAuditLog } from '@/server/audit';
+import { invalidateAggregateCaches } from '@/lib/cache';
 
 export type EquipmentActionResult =
   | { ok: true }
@@ -86,6 +87,7 @@ export async function createEquipment(
     });
 
     revalidatePath('/equipment');
+    await invalidateAggregateCaches();
     redirect(`/equipment/${equipment.id}`);
   } catch (error) {
     if (isUniqueConstraintError(error)) {
@@ -165,6 +167,7 @@ export async function updateEquipment(
 
     revalidatePath('/equipment');
     revalidatePath(`/equipment/${id}`);
+    await invalidateAggregateCaches();
     redirect(`/equipment/${id}`);
   } catch (error) {
     if (isUniqueConstraintError(error)) {
@@ -218,5 +221,6 @@ export async function deleteEquipment(
   revalidatePath('/downtime');
   revalidatePath('/reports');
   revalidatePath(`/equipment/${id}`);
+  await invalidateAggregateCaches();
   return { ok: true };
 }

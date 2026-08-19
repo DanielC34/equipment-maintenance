@@ -5,6 +5,7 @@ import type {
   Priority,
 } from '@prisma/client';
 import prisma from '@/lib/prisma';
+import { getCached, setCached, CACHE_KEYS } from '@/lib/cache';
 import { downtimeDurationMinutes } from '@/server/downtime';
 
 export const DASHBOARD_LIST_LIMIT = 5;
@@ -156,6 +157,58 @@ export async function getDowntimeByReason(): Promise<DowntimeReasonRow[]> {
     .sort((a, b) => b.count - a.count);
 }
 
+export interface DashboardAggregates {
+  equipmentTotal: number;
+  equipmentByStatus: Record<EquipmentStatus, number>;
+  maintenanceByStatus: Record<MaintenanceStatus, number>;
+  overdueTasks: number;
+  openDowntime: number;
+  downtimeTotals: DowntimeTotals;
+  downtimeByReason: DowntimeReasonRow[];
+}
+
+/** Fast, cache-friendly subset of the dashboard (no Date-typed rows). */
+export async function getDashboardAggregates(): Promise<DashboardAggregates> {
+  const cached = await getCached<DashboardAggregates>(
+    CACHE_KEYS.dashboardAggregates
+  );
+  if (cached) return cached;
+
+  const computed = await computeDashboardAggregates();
+  await setCached(CACHE_KEYS.dashboardAggregates, computed);
+  return computed;
+}
+
+async function computeDashboardAggregates(): Promise<DashboardAggregates> {
+  const [
+    equipmentTotal,
+    equipmentByStatus,
+    maintenanceByStatus,
+    overdueTasks,
+    openDowntime,
+    downtimeTotals,
+    downtimeByReason,
+  ] = await Promise.all([
+    getEquipmentTotal(),
+    getEquipmentStatusCounts(),
+    getMaintenanceStatusCounts(),
+    getOverdueTaskCount(),
+    getOpenDowntimeCount(),
+    getDowntimeTotals(),
+    getDowntimeByReason(),
+  ]);
+
+  return {
+    equipmentTotal,
+    equipmentByStatus,
+    maintenanceByStatus,
+    overdueTasks,
+    openDowntime,
+    downtimeTotals,
+    downtimeByReason,
+  };
+}
+
 export interface DashboardOverview {
   equipmentTotal: number;
   equipmentByStatus: Record<EquipmentStatus, number>;
@@ -171,44 +224,21 @@ export interface DashboardOverview {
 }
 
 export async function getDashboardOverview(): Promise<DashboardOverview> {
-  const [
-    equipmentTotal,
-    equipmentByStatus,
-    maintenanceByStatus,
-    overdueTasks,
-    openDowntime,
-    upcomingTasks,
-    recentRecords,
-    openDowntimeEvents,
-    recentDowntimeEvents,
-    downtimeTotals,
-    downtimeByReason,
-  ] = await Promise.all([
-    getEquipmentTotal(),
-    getEquipmentStatusCounts(),
-    getMaintenanceStatusCounts(),
-    getOverdueTaskCount(),
-    getOpenDowntimeCount(),
-    getUpcomingTasks(),
-    getRecentMaintenanceRecords(),
-    getOpenDowntimeEvents(),
-    getRecentDowntimeEvents(),
-    getDowntimeTotals(),
-    getDowntimeByReason(),
-  ]);
+  const [aggregates, upcomingTasks, recentRecords, openDowntimeEvents, recentDowntimeEvents] =
+    await Promise.all([
+      getDashboardAggregates(),
+      getUpcomingTasks(),
+      getRecentMaintenanceRecords(),
+      getOpenDowntimeEvents(),
+      getRecentDowntimeEvents(),
+    ]);
 
   return {
-    equipmentTotal,
-    equipmentByStatus,
-    maintenanceByStatus,
-    overdueTasks,
-    openDowntime,
+    ...aggregates,
     upcomingTasks,
     recentRecords,
     openDowntimeEvents,
     recentDowntimeEvents,
-    downtimeTotals,
-    downtimeByReason,
   };
 }
 

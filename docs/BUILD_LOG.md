@@ -1130,3 +1130,67 @@ Post-run `psql` on `emms_dev`: `AuditLog`=0, exactly seed counts everywhere else
 ### Next milestone
 
 - Consider a **restore/re-activate** flow if business needs it; explore a **"block archive while OPEN work exists"** rule; and revisit downtime analytics (MTTR/MTBF) once data accrues.
+
+---
+
+## Milestone 15 — Performance & Scalability (cached aggregates)
+
+**Goal**: implement **Phase 9 (Performance & Scalability)** of the roadmap without expanding scope. Dashboard/reports aggregates are cached in Redis for 60 seconds with best-effort behavior (Redis down ⇒ the app falls back to live PostgreSQL computation), every mutating server action invalidates the affected caches, and three query-pattern-justified indexes are added. Verified at 10k+ row scale and through a running `next start` server, including a server started with Redis unreachable.
+
+### Cache layer (`src/lib/cache.ts`, new)
+
+- **`ioredis`** added as the only new runtime dependency. `getClient()` is lazy: it returns `null` when `REDIS_URL` is unset, constructs the singleton on first use with `lazyConnect`, `enableOfflineQueue: false`, `maxRetriesPerRequest: 1`, a 2s connect timeout, and `retryStrategy: () => null` (fail fast so a down Redis never blocks request paths). A one-time warning logs the fallback.
+- `getCached<T>` / `setCached<T>` — JSON get/set with `EX ${CACHE_TTL_SECONDS}` (60s). Every call is wrapped so Redis errors return `null` / no-op instead of throwing.
+- `CACHE_KEYS` (the only cached surfaces) — `emms:dashboard:aggregates:v1`, `emms:reports:maintenance:v1`, `emms:reports:downtime:v1`. `invalidateKeys` + `invalidateAggregateCaches()` delete all three.
+
+### Dashboard wiring (`src/server/dashboard.ts`)
+
+- **`getDashboardAggregates()`** — new JSON-safe (no `Date` rows) `DashboardAggregates` type covering the seven numeric summaries (equipment total/status counts, maintenance status counts, overdue tasks, open downtime, downtime totals/MTTR, downtime by reason). Reads cache first, recomputes on miss, writes back.
+- **`getDashboardOverview()`** unchanged in shape: it now composes the cached aggregates with the five small live list queries (upcoming tasks / recent records / open + recent downtime, take-5), so the page gets fast numbers while the cheap lists stay fresh.
+
+### Report wiring (`src/server/reports.ts`)
+
+- `getMaintenanceReport` / `getDowntimeReport` cache **only the unfiltered** result under a fixed key (bounded cache, no per-date-range key growth). Any `from`/`to` filter recomputes live and never writes to the cache. Refs `compute*` helpers for the raw SQL path.
+
+### Mutation invalidation (all server actions)
+
+- Every successful write in `src/server/actions/{equipment,maintenance,downtime,users}.ts` calls `await invalidateAggregateCaches()` (before `redirect` for redirect actions, and on the return path for `{ ok: true }` actions) so dashboard/report numbers refresh immediately after create/update/delete-equipment, schedule/start/complete maintenance, record/resolve downtime, and user create/update.
+
+### Indexes (migration `20260820000000_add_performance_indexes`)
+
+- `Equipment(@@index([name]))` — the registry's default order-by-name sort.
+- `MaintenanceTask(@@index([status, scheduledDate]))` — overdue-task count and status-filtered task lists ordered by schedule.
+- `MaintenanceRecord(@@index([technicianId, completedDate]))` — maintenance-report technician grouping with/without a date range.
+- Created manually with `prisma migrate diff --from-config-datasource --to-schema` (interactive `migrate dev` unusable in this shell), BOM-free, applied with `prisma migrate deploy`, client regenerated, confirmed present in `pg_indexes`.
+
+### Testing
+
+- **Unit** (`tests/unit/cache.test.ts`, 6 tests) — mocks `ioredis` with an in-memory fake (JSON round-trip, `EX 60` TTL, custom TTL, missing key, `invalidateAggregateCaches` deletes all three keys, Redis errors fall back to `null` instead of throwing, and no `REDIS_URL` ⇒ fully a no-op).
+- **Integration** (`tests/integration/cache.test.ts`, 4 tests, real Redis + `emms_test`) — dashboard aggregates serve a primed cache value then recompute after invalidation; unfiltered reports are cached while filtered ones recompute live and never overwrite the cache; a direct DB write leaves the report stale until invalidation; a real `recordDowntimeEvent` dispatch invalidates and the next read is fresh.
+- **Runtime** (`scripts/verify-m15-runtime.ts` via `npm run verify:m15`) — against a real `next start` server: dashboard renders and writes the aggregate key (TTL ≤ 60), reports write both keys, a second render keeps them, a mutating action deletes all three keys at once, reports re-populate on the next load, and a second server booted with `REDIS_URL` pointed at an unused port still renders `/dashboard` + `/reports` (graceful fallback; the `[cache] Redis error — falling back…` line proves the degraded path engaged) and stays responsive.
+- **Load harness** (`scripts/load-test-m15.ts` via `npm run load:m15`) — seeds a factory, technician, 12 equipment, **10,000 maintenance records + 10,000 downtime events** into the dev DB, then times cold (cache cleared) vs cached reads:
+
+  | surface | cold | cached |
+  |---|---|---|
+  | dashboard aggregates | 86.0 ms | 0.9 ms |
+  | dashboard overview | 163.4 ms | 16.7 ms |
+  | maintenance report | 18.9 ms | 0.7 ms |
+  | downtime report | 66.9 ms | 0.9 ms |
+
+  Cached results are deep-equal to recomputed ones, keys carry a TTL, filtered reports stay live, and all seeded rows are removed afterwards (dev DB restored).
+
+### Verification
+
+- `npm run lint` (0 problems), `npx tsc --noEmit`, `npm run build` all pass.
+- `npm test` passes end to end: unit 123/123, integration 110/110 (cache suite included) against `emms_test`.
+- `npm run load:m15` — 12/12 pass at 20,000+ rows. `npm run verify:m15` — 14/14 pass; cleanup removes the probe downtime row and leaves the dev DB at seed state.
+
+### Known limitations
+
+- **Bounded scope by design** — only three aggregate surfaces are cached; list/search pages, per-user data, sessions, permissions, audit, and date-filtered reports remain uncached (unbounded keys were deliberately avoided).
+- **Max 60s staleness** — a write outside the action layer (direct DB edit, another server process) will not refresh the cache until the next invalidation/timer (and clock-skew TTL drift is not handled).
+- **Single-writer invalidation** — invalidations are best-effort fire-and-forget; with a multi-app deployment a different process's writes would need queue-based invalidation. Not in scope.
+
+### Next milestone
+
+- Production-grade deployment hardening (per PRD V2): report **exports**, deeper downtime analytics (OEE/MTBF), a **restore** flow, and background processes — each noted in the roadmap but outside this milestone.
