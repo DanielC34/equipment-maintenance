@@ -21,6 +21,15 @@ const DEMO_PASSWORD = 'password123';
 async function main() {
   console.log('Starting database seed...');
 
+  const existingFactories = await prisma.factory.count();
+  if (existingFactories > 0) {
+    throw new Error(
+      'Refusing to seed: the target database is not empty. ' +
+        'prisma/seed.ts wipes and recreates all application data, so it only runs against an empty database. ' +
+        'Point DATABASE_URL at a fresh or explicitly wiped database (e.g. emms_dev or emms_test).'
+    );
+  }
+
   await prisma.downtimeEvent.deleteMany();
   await prisma.partUsed.deleteMany();
   await prisma.maintenanceRecord.deleteMany();

@@ -16,6 +16,7 @@ import {
   userCanBeAssigned,
 } from '@/server/maintenance';
 import { writeAuditLog } from '@/server/audit';
+import { invalidateAggregateCaches } from '@/lib/cache';
 
 export type MaintenanceActionResult =
   | { ok: true }
@@ -100,6 +101,7 @@ export async function createMaintenanceTask(
 
   revalidatePath('/maintenance');
   revalidatePath('/equipment');
+  await invalidateAggregateCaches();
   redirect(`/maintenance/${task.id}`);
 }
 
@@ -189,6 +191,7 @@ export async function updateMaintenanceTask(
   revalidatePath('/maintenance');
   revalidatePath('/equipment');
   revalidatePath(`/maintenance/${id}`);
+  await invalidateAggregateCaches();
   redirect(`/maintenance/${id}`);
 }
 
@@ -245,6 +248,7 @@ export async function startMaintenanceTask(
 
   revalidatePath('/maintenance');
   revalidatePath(`/maintenance/${id}`);
+  await invalidateAggregateCaches();
   return { ok: true };
 }
 
@@ -336,5 +340,6 @@ export async function completeMaintenanceTask(
   revalidatePath('/maintenance');
   revalidatePath('/equipment');
   revalidatePath(`/maintenance/${id}`);
+  await invalidateAggregateCaches();
   return { ok: true };
 }

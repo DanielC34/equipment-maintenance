@@ -1,5 +1,6 @@
 import type { Prisma, DowntimeReason } from '@prisma/client';
 import prisma from '@/lib/prisma';
+import { getCached, setCached, CACHE_KEYS } from '@/lib/cache';
 import { downtimeDurationMinutes } from '@/server/downtime';
 
 export interface ReportFilter {
@@ -39,6 +40,23 @@ export interface MaintenanceReport {
 }
 
 export async function getMaintenanceReport(
+  filter: ReportFilter
+): Promise<MaintenanceReport> {
+  const cacheable = !filter.from && !filter.to;
+  if (cacheable) {
+    const cached = await getCached<MaintenanceReport>(
+      CACHE_KEYS.reportsMaintenance
+    );
+    if (cached) return cached;
+  }
+  const report = await computeMaintenanceReport(filter);
+  if (cacheable) {
+    await setCached(CACHE_KEYS.reportsMaintenance, report);
+  }
+  return report;
+}
+
+async function computeMaintenanceReport(
   filter: ReportFilter
 ): Promise<MaintenanceReport> {
   const range = dateRange(filter.from, filter.to);
@@ -107,6 +125,21 @@ export interface DowntimeReport {
 }
 
 export async function getDowntimeReport(
+  filter: ReportFilter
+): Promise<DowntimeReport> {
+  const cacheable = !filter.from && !filter.to;
+  if (cacheable) {
+    const cached = await getCached<DowntimeReport>(CACHE_KEYS.reportsDowntime);
+    if (cached) return cached;
+  }
+  const report = await computeDowntimeReport(filter);
+  if (cacheable) {
+    await setCached(CACHE_KEYS.reportsDowntime, report);
+  }
+  return report;
+}
+
+async function computeDowntimeReport(
   filter: ReportFilter
 ): Promise<DowntimeReport> {
   const range = dateRange(filter.from, filter.to);

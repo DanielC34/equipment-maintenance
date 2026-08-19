@@ -13,6 +13,7 @@ import {
 } from '@/lib/validations';
 import { getDowntimeEventById } from '@/server/downtime';
 import { writeAuditLog } from '@/server/audit';
+import { invalidateAggregateCaches } from '@/lib/cache';
 
 export type DowntimeActionResult =
   | { ok: true }
@@ -109,6 +110,7 @@ export async function recordDowntimeEvent(
 
   revalidatePath('/downtime');
   revalidatePath('/equipment');
+  await invalidateAggregateCaches();
   redirect(`/downtime/${event.id}`);
 }
 
@@ -162,5 +164,6 @@ export async function resolveDowntimeEvent(
   revalidatePath('/downtime');
   revalidatePath('/equipment');
   revalidatePath(`/downtime/${id}`);
+  await invalidateAggregateCaches();
   return { ok: true };
 }

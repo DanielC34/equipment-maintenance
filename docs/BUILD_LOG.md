@@ -112,7 +112,7 @@ Docker was introduced to provide a consistent, isolated, and easily reproducible
 
 ### What services are running
 
-- **PostgreSQL 15** (`emms_postgres`): Primary relational database, source of truth for all business data. Exposed on port `5432`. Data persisted to `emms_pgdata` Docker volume.
+- **PostgreSQL 15** (`emms_postgres`): Primary relational database, source of truth for all business data. Exposed on host port `5433` (mapped to the container's `5432`). Data persisted to `emms_pgdata` Docker volume.
 - **Redis 7** (`emms_redis`): In-memory data store for future caching and session needs. Exposed on port `6379`. Data persisted to `emms_redisdata` Docker volume.
 
 ### How PostgreSQL connects to Prisma
@@ -120,7 +120,7 @@ Docker was introduced to provide a consistent, isolated, and easily reproducible
 Prisma reads the `DATABASE_URL` from the `.env` file (based on `.env.example`). The URL points to the Docker container:
 
 ```
-DATABASE_URL="postgresql://postgres:password@localhost:5432/emms_dev?schema=public"
+DATABASE_URL="postgresql://postgres:password@localhost:5433/emms_dev?schema=public"
 ```
 
 The `prisma.config.ts` file reads this variable and passes it to Prisma Migrate.
@@ -327,8 +327,8 @@ No schema, model, migration, Docker, or application-architecture changes were ma
 
 ### How the database connection now works
 
-- The Prisma CLI loads `.env` explicitly via `import 'dotenv/config'` inside `prisma.config.ts`, so `env('DATABASE_URL')` resolves `postgresql://postgres:password@localhost:5432/emms_dev?schema=public`.
-- The URL matches `docker-compose.yml`: `POSTGRES_USER=postgres`, `POSTGRES_PASSWORD=password`, `POSTGRES_DB=emms_dev`, port `5432`.
+- The Prisma CLI loads `.env` explicitly via `import 'dotenv/config'` inside `prisma.config.ts`, so `env('DATABASE_URL')` resolves `postgresql://postgres:password@localhost:5433/emms_dev?schema=public`.
+- The URL matches `docker-compose.yml`: `POSTGRES_USER=postgres`, `POSTGRES_PASSWORD=password`, `POSTGRES_DB=emms_dev`, host port `5433` (mapped to the container's `5432`).
 - Runtime application code (`src/lib/prisma.ts`) and the seed use the `PrismaPg` driver adapter required by Prisma 7 (Next.js auto-loads `.env`; the seed loads it explicitly via `dotenv/config`).
 
 ### Commands used to verify
@@ -1130,3 +1130,114 @@ Post-run `psql` on `emms_dev`: `AuditLog`=0, exactly seed counts everywhere else
 ### Next milestone
 
 - Consider a **restore/re-activate** flow if business needs it; explore a **"block archive while OPEN work exists"** rule; and revisit downtime analytics (MTTR/MTBF) once data accrues.
+
+---
+
+## Milestone 15 — Performance & Scalability (cached aggregates)
+
+**Goal**: implement **Phase 9 (Performance & Scalability)** of the roadmap without expanding scope. Dashboard/reports aggregates are cached in Redis for 60 seconds with best-effort behavior (Redis down ⇒ the app falls back to live PostgreSQL computation), every mutating server action invalidates the affected caches, and three query-pattern-justified indexes are added. Verified at 10k+ row scale and through a running `next start` server, including a server started with Redis unreachable.
+
+### Cache layer (`src/lib/cache.ts`, new)
+
+- **`ioredis`** added as the only new runtime dependency. `getClient()` is lazy: it returns `null` when `REDIS_URL` is unset, constructs the singleton on first use with `lazyConnect`, `enableOfflineQueue: false`, `maxRetriesPerRequest: 1`, a 2s connect timeout, and `retryStrategy: () => null` (fail fast so a down Redis never blocks request paths). A one-time warning logs the fallback.
+- `getCached<T>` / `setCached<T>` — JSON get/set with `EX ${CACHE_TTL_SECONDS}` (60s). Every call is wrapped so Redis errors return `null` / no-op instead of throwing.
+- `CACHE_KEYS` (the only cached surfaces) — `emms:dashboard:aggregates:v1`, `emms:reports:maintenance:v1`, `emms:reports:downtime:v1`. `invalidateKeys` + `invalidateAggregateCaches()` delete all three.
+
+### Dashboard wiring (`src/server/dashboard.ts`)
+
+- **`getDashboardAggregates()`** — new JSON-safe (no `Date` rows) `DashboardAggregates` type covering the seven numeric summaries (equipment total/status counts, maintenance status counts, overdue tasks, open downtime, downtime totals/MTTR, downtime by reason). Reads cache first, recomputes on miss, writes back.
+- **`getDashboardOverview()`** unchanged in shape: it now composes the cached aggregates with the five small live list queries (upcoming tasks / recent records / open + recent downtime, take-5), so the page gets fast numbers while the cheap lists stay fresh.
+
+### Report wiring (`src/server/reports.ts`)
+
+- `getMaintenanceReport` / `getDowntimeReport` cache **only the unfiltered** result under a fixed key (bounded cache, no per-date-range key growth). Any `from`/`to` filter recomputes live and never writes to the cache. Refs `compute*` helpers for the raw SQL path.
+
+### Mutation invalidation (all server actions)
+
+- Every successful write in `src/server/actions/{equipment,maintenance,downtime,users}.ts` calls `await invalidateAggregateCaches()` (before `redirect` for redirect actions, and on the return path for `{ ok: true }` actions) so dashboard/report numbers refresh immediately after create/update/delete-equipment, schedule/start/complete maintenance, record/resolve downtime, and user create/update.
+
+### Indexes (migration `20260820000000_add_performance_indexes`)
+
+- `Equipment(@@index([name]))` — the registry's default order-by-name sort.
+- `MaintenanceTask(@@index([status, scheduledDate]))` — overdue-task count and status-filtered task lists ordered by schedule.
+- `MaintenanceRecord(@@index([technicianId, completedDate]))` — maintenance-report technician grouping with/without a date range.
+- Created manually with `prisma migrate diff --from-config-datasource --to-schema` (interactive `migrate dev` unusable in this shell), BOM-free, applied with `prisma migrate deploy`, client regenerated, confirmed present in `pg_indexes`.
+
+### Testing
+
+- **Unit** (`tests/unit/cache.test.ts`, 6 tests) — mocks `ioredis` with an in-memory fake (JSON round-trip, `EX 60` TTL, custom TTL, missing key, `invalidateAggregateCaches` deletes all three keys, Redis errors fall back to `null` instead of throwing, and no `REDIS_URL` ⇒ fully a no-op).
+- **Integration** (`tests/integration/cache.test.ts`, 4 tests, real Redis + `emms_test`) — dashboard aggregates serve a primed cache value then recompute after invalidation; unfiltered reports are cached while filtered ones recompute live and never overwrite the cache; a direct DB write leaves the report stale until invalidation; a real `recordDowntimeEvent` dispatch invalidates and the next read is fresh.
+- **Runtime** (`scripts/verify-m15-runtime.ts` via `npm run verify:m15`) — against a real `next start` server: dashboard renders and writes the aggregate key (TTL ≤ 60), reports write both keys, a second render keeps them, a mutating action deletes all three keys at once, reports re-populate on the next load, and a second server booted with `REDIS_URL` pointed at an unused port still renders `/dashboard` + `/reports` (graceful fallback; the `[cache] Redis error — falling back…` line proves the degraded path engaged) and stays responsive.
+- **Load harness** (`scripts/load-test-m15.ts` via `npm run load:m15`) — seeds a factory, technician, 12 equipment, **10,000 maintenance records + 10,000 downtime events** into the dev DB, then times cold (cache cleared) vs cached reads:
+
+  | surface | cold | cached |
+  |---|---|---|
+  | dashboard aggregates | 86.0 ms | 0.9 ms |
+  | dashboard overview | 163.4 ms | 16.7 ms |
+  | maintenance report | 18.9 ms | 0.7 ms |
+  | downtime report | 66.9 ms | 0.9 ms |
+
+  Cached results are deep-equal to recomputed ones, keys carry a TTL, filtered reports stay live, and all seeded rows are removed afterwards (dev DB restored).
+
+### Verification
+
+- `npm run lint` (0 problems), `npx tsc --noEmit`, `npm run build` all pass.
+- `npm test` passes end to end: unit 123/123, integration 110/110 (cache suite included) against `emms_test`.
+- `npm run load:m15` — 12/12 pass at 20,000+ rows. `npm run verify:m15` — 14/14 pass; cleanup removes the probe downtime row and leaves the dev DB at seed state.
+
+### Known limitations
+
+- **Bounded scope by design** — only three aggregate surfaces are cached; list/search pages, per-user data, sessions, permissions, audit, and date-filtered reports remain uncached (unbounded keys were deliberately avoided).
+- **Max 60s staleness** — a write outside the action layer (direct DB edit, another server process) will not refresh the cache until the next invalidation/timer (and clock-skew TTL drift is not handled).
+- **Single-writer invalidation** — invalidations are best-effort fire-and-forget; with a multi-app deployment a different process's writes would need queue-based invalidation. Not in scope.
+
+### Next milestone
+
+- Production-grade deployment hardening (per PRD V2): report **exports**, deeper downtime analytics (OEE/MTBF), a **restore** flow, and background processes — each noted in the roadmap but outside this milestone.
+
+---
+
+## Milestone 16 — Production Deployment (preparation)
+
+**Goal**: implement **Phase 10 (Production Deployment)** of the roadmap: prepare the repository for hosting on **Vercel** (application) with **PostgreSQL and Redis on Railway**, matching PRD §12 and Session 8 of the learning handbook. The owner executes the actual cloud provisioning; this milestone ships every code-side and documentation-side prerequisite plus the verification harness. New items approved with the owner: 24-hour session lifetime (PRD §16) enforced in code; no optional extras (security headers, GitHub Actions CI job, custom domain deferred).
+
+### Deployment runbook (`docs/DEPLOYMENT.md`, new)
+
+- Canonical runbook: target architecture (Vercel app + Railway PostgreSQL + Railway Redis), the exact environment-variable table (`DATABASE_URL`, `REDIS_URL`, `AUTH_SECRET`, `NEXTAUTH_URL`), one-time provisioning steps, the Vercel auto-deploy pipeline, production-migration steps (`prisma migrate deploy`, never `migrate dev`/`reset`), the production-seed hazard (`seed.ts` wipes tables + known `password123`), a Session 8 production checklist, a backups/restore runbook (Railway daily backups + a `pg_dump`/`pg_restore` drill; Redis explicitly not backed up by design), and a Definition of Done checklist.
+
+### Build/runtime hardening
+
+- `package.json` — `"postinstall": "prisma generate"` (guarded with `|| echo`, since Prisma 7 requires `DATABASE_URL` to resolve `prisma.config.ts` — generation runs on Vercel where the env var is set, while a fresh local `npm install` before `.env` exists logs a skip note instead of failing; a missing client still fails the later build); `"engines": { "node": ">=20.9.0" }` matching Next.js's declared engine floor; `verify:m16` script alias.
+- `src/auth.ts` — `session.maxAge: 24 * 60 * 60` (one day), enforcing the **PRD §16 session-token lifetime** that the previous 30-day NextAuth JWT default did not match.
+- `src/app/api/health/route.ts` (new) — unauthenticated `GET /api/health`: runs `SELECT 1` through Prisma; returns `{ status: 'ok', db: 'ok', timestamp }` (200) or `{ status: 'degraded', db: 'error' }` (503); `dynamic = 'force-dynamic'` so it is never statically cached.
+- `src/app/error.tsx`, `src/app/global-error.tsx`, `src/app/not-found.tsx` (new, Next 16 conventions) — root segment error boundary (matching the existing equipment/maintenance segment files), Global Error UI that replaces the root layout on layout-depth crashes (must own `<html>/<body>`, per the installed `error.js` docs), and a friendly 404 page wired for unmatched URLs.
+- `.env.example` — replaced the dev-only `NEXTAUTH_URL` comment with the production (Vercel/Railway) guidance.
+
+### Documentation
+
+- `README.md` — "Completed/Planned" capabilities, the Development Roadmap (Milestones 1–15 complete, Phase 10 current), Current Status, and the Engineering Documentation list now reflect reality and link to `docs/DEPLOYMENT.md`.
+
+### Verification
+
+- `npm run lint` (0 problems), `npx tsc --noEmit`, `npm run build` all pass; the build route table includes the new `/api/health` route.
+- `npm test` unchanged and green (unit 123/123, integration 110/110) — no behavior changed outside auth session lifetime and error docs.
+- `npm run verify:m16` (`scripts/verify-m16-runtime.ts`) against a local `next start` build: `/api/health` renders `{status:'ok',db:'ok'}` (200) and again after a full auth cycle; the auth-aware root `/` redirects anonymous users to `/login` and `/login` renders; anonymous `/dashboard` redirects to `/login`; admin sign-in succeeds and the session-token cookie **expires ≈ 24 h** after issue (confirming PRD §16); an *authenticated* unknown URL returns **404 with the custom not-found UI** (the middleware guards every non-`/login` path, so anonymous unknowns redirect to sign-in rather than 404 — the not-found page is exercised with a session). **12/12 pass.** The script also runs against a live URL via `VERIFY_BASE_URL` + `--skip-build` for the deployed verification pass.
+
+### Outstanding (owner actions, code side complete)
+
+- Create the Railway project with PostgreSQL + Redis (`DATABASE_URL`, `REDIS_URL`).
+- Import the repo on Vercel; set `DATABASE_URL`, `REDIS_URL`, `AUTH_SECRET`, `NEXTAUTH_URL` (encrypted, Preview + Production scope).
+- First deploy; run `prisma migrate deploy` against production; confirm `prisma migrate status` is up to date.
+- Seed only an empty production DB, then **rotate the admin password** (documented SQL path) — the app has no change-password flow by design.
+- Configure HTTPS (Vercel default) and confirm Railway daily backups; run the documented `pg_dump`/`pg_restore` drill once.
+- Run `VERIFY_BASE_URL=<live> npm run verify:m16 -- --skip-build` and confirm all checks against the deployed URL.
+
+### Known limitations
+
+- **No CI job** — verification relies on the Vercel pipeline (lint/typecheck/build) plus the repo's own suites; a GitHub Actions test job was explicitly deferred.
+- **No security headers/config extras** — deferred with the owner's approval; `next.config.ts` remains empty.
+- **Session revocation still absent** — unrevoked stateless JWTs live out their (now 24-hour) lifetime when a user is deactivated (unchanged from M13; revocation remains out of scope).
+
+### Next milestone
+
+- Execute the outstanding provisioning/verification steps above to complete Phase 10, then begin the PRD-V2 backlog: report **exports**, deeper downtime analytics (OEE/MTBF), equipment **restore**, and background processes.
