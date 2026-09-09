@@ -24,7 +24,7 @@ export default async function NewMaintenancePage() {
         title="Schedule maintenance"
         description="Plan a maintenance task against registered equipment."
       />
-      <div className="rounded-xl border border-gray-200 bg-white p-6">
+      <div className="max-w-xl rounded-xl border border-[var(--io-border)] bg-white p-6">
         <MaintenanceForm
           equipments={equipments}
           assignableUsers={assignableUsers}

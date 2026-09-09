@@ -1,18 +1,19 @@
 import Link from 'next/link'
+import { PageHeader } from '@/components/page-header'
+import { Button } from '@/components/ui/button'
 
 export default function UnauthorizedPage() {
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-gray-900">Unauthorized</h1>
-      <p className="text-sm text-gray-700">
-        You do not have permission to access this area.
-      </p>
-      <Link
-        href="/dashboard"
-        className="text-sm text-indigo-600 hover:underline"
-      >
-        Back to dashboard
-      </Link>
+    <div className="space-y-6">
+      <PageHeader
+        title="Unauthorized"
+        description="You do not have permission to access this area."
+        actions={
+          <Link href="/dashboard">
+            <Button variant="outline">Back to dashboard</Button>
+          </Link>
+        }
+      />
     </div>
   )
 }

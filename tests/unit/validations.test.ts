@@ -40,9 +40,9 @@ describe('loginSchema', () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues.find((i) => i.path[0] === 'email')?.message).toBe(
-        'Enter a valid email address.'
-      );
+      expect(
+        result.error.issues.find((i) => i.path[0] === 'email')?.message
+      ).toBe('Enter a valid email address.');
     }
   });
 
@@ -91,9 +91,7 @@ describe('equipmentFormSchema', () => {
       const result = equipmentFormSchema.safeParse({ ...valid, [field]: '' });
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(
-          result.error.issues.some((i) => i.path[0] === field)
-        ).toBe(true);
+        expect(result.error.issues.some((i) => i.path[0] === field)).toBe(true);
       }
     }
   );
@@ -146,6 +144,7 @@ describe('equipmentFilterSchema', () => {
     const parsed = equipmentFilterSchema.parse({});
     expect(parsed.q).toBe('');
     expect(parsed.status).toBeUndefined();
+    expect(parsed.criticality).toBeUndefined();
     expect(parsed.page).toBe(1);
   });
 
@@ -159,11 +158,23 @@ describe('equipmentFilterSchema', () => {
     expect(equipmentFilterSchema.parse({ status: '' }).status).toBeUndefined();
   });
 
+  it('normalises an empty criticality to undefined', () => {
+    expect(
+      equipmentFilterSchema.parse({ criticality: '' }).criticality
+    ).toBeUndefined();
+  });
+
   it('keeps a valid status and caps an oversized query', () => {
     expect(
       equipmentFilterSchema.parse({ status: 'UNDER_MAINTENANCE' }).status
     ).toBe('UNDER_MAINTENANCE');
     expect(equipmentFilterSchema.parse({ q: 'x'.repeat(500) }).q).toBe('');
+  });
+
+  it('keeps a valid criticality', () => {
+    expect(
+      equipmentFilterSchema.parse({ criticality: 'Critical' }).criticality
+    ).toBe('Critical');
   });
 });
 
@@ -281,7 +292,9 @@ describe('maintenanceFilterSchema', () => {
   });
 
   it('catches invalid enum values back to undefined', () => {
-    expect(maintenanceFilterSchema.parse({ status: 'NOPE' }).status).toBeUndefined();
+    expect(
+      maintenanceFilterSchema.parse({ status: 'NOPE' }).status
+    ).toBeUndefined();
     expect(
       maintenanceFilterSchema.parse({ priority: 'NOPE' }).priority
     ).toBeUndefined();
@@ -297,9 +310,9 @@ describe('maintenancePartSchema', () => {
   });
 
   it('requires a name with max length 120', () => {
-    expect(maintenancePartSchema.safeParse({ name: '', quantity: 1 }).success).toBe(
-      false
-    );
+    expect(
+      maintenancePartSchema.safeParse({ name: '', quantity: 1 }).success
+    ).toBe(false);
     expect(
       maintenancePartSchema.safeParse({ name: 'x'.repeat(121), quantity: 1 })
         .success
@@ -311,7 +324,8 @@ describe('maintenancePartSchema', () => {
       maintenancePartSchema.safeParse({ name: 'Part', quantity: 0 }).success
     ).toBe(false);
     expect(
-      maintenancePartSchema.safeParse({ name: 'Part', quantity: 100001 }).success
+      maintenancePartSchema.safeParse({ name: 'Part', quantity: 100001 })
+        .success
     ).toBe(false);
     expect(
       maintenancePartSchema.safeParse({ name: 'Part', quantity: 1.5 }).success
@@ -522,9 +536,9 @@ describe('downtimeEventResolveSchema', () => {
     expect(downtimeEventResolveSchema.safeParse({ endedAt: '' }).success).toBe(
       false
     );
-    expect(downtimeEventResolveSchema.safeParse({ endedAt: 'garbage' }).success).toBe(
-      false
-    );
+    expect(
+      downtimeEventResolveSchema.safeParse({ endedAt: 'garbage' }).success
+    ).toBe(false);
     expect(downtimeEventResolveSchema.safeParse({}).success).toBe(false);
   });
 });

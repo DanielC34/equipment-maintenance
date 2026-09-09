@@ -7,17 +7,18 @@ import {
   type MaintenanceFilterValues,
 } from '@/lib/validations';
 import type { MaintenanceStatus, Priority } from '@prisma/client';
-import {
-  PERMISSIONS,
-  requirePermission,
-  hasPermission,
-} from '@/server/rbac';
+import { PERMISSIONS, requirePermission, hasPermission } from '@/server/rbac';
 import { listMaintenanceTasks } from '@/server/maintenance';
 import { PageHeader } from '@/components/page-header';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
+import { Input, inputBase } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { DataTable } from '@/components/ui/data-table';
+import { FilterChip } from '@/components/ui/filter-chip';
 import { cn } from '@/lib/utils';
-import { MaintenanceStatusBadge } from '@/components/maintenance/maintenance-status-badge';
-import { MaintenancePriorityBadge } from '@/components/maintenance/maintenance-priority-badge';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { PriorityIndicator } from '@/components/ui/priority-indicator';
 
 export const metadata = {
   title: 'Maintenance | EMMS',
@@ -36,9 +37,6 @@ const PRIORITY_LABELS: Record<Priority, string> = {
   HIGH: 'High',
   CRITICAL: 'Critical',
 };
-
-const inputClass =
-  'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
 
 function formatScheduledDate(date: Date): string {
   return new Intl.DateTimeFormat('en-US', {
@@ -82,6 +80,50 @@ export default async function MaintenancePage({
     return query ? `/maintenance?${query}` : '/maintenance';
   }
 
+  const columns = [
+    {
+      key: 'title',
+      header: 'Task',
+      render: (task: typeof items[0]) => (
+        <div>
+          <Link
+            href={`/maintenance/${task.id}`}
+            className="font-medium text-[var(--io-accent)] hover:underline"
+          >
+            {task.title}
+          </Link>
+          {task.description ? (
+            <p className="mt-0.5 line-clamp-1 max-w-xs text-xs text-gray-500">
+              {task.description}
+            </p>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: 'equipment',
+      header: 'Equipment',
+      render: (task: typeof items[0]) => (
+        <div>
+          <Link
+            href={`/equipment/${task.equipment.id}`}
+            className="font-medium text-[var(--io-accent)] hover:underline"
+          >
+            {task.equipment.name}
+          </Link>
+          <span className="text-gray-500"> · {task.equipment.assetNumber}</span>
+          {task.equipment.location && (
+            <p className="mt-0.5 text-xs text-gray-500">{task.equipment.location}</p>
+          )}
+        </div>
+      ),
+    },
+    { key: 'assignedUser.name', header: 'Assigned to', render: (t: typeof items[0]) => t.assignedUser?.name ?? '—' },
+    { key: 'scheduledDate', header: 'Scheduled', render: (t: typeof items[0]) => <span className="whitespace-nowrap text-gray-700">{formatScheduledDate(t.scheduledDate)}</span> },
+    { key: 'priority', header: 'Priority', render: (t: typeof items[0]) => <PriorityIndicator priority={t.priority} /> },
+    { key: 'status', header: 'Status', render: (t: typeof items[0]) => <StatusBadge status={t.status} /> },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -109,36 +151,27 @@ export default async function MaintenancePage({
 
       <form
         method="GET"
-        className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-end"
+        className="flex flex-col gap-3 rounded-xl border border-[var(--io-border)] bg-white p-4 sm:flex-row sm:items-end"
       >
         <div className="min-w-0 flex-1">
-          <label
-            htmlFor="q"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Search
-          </label>
-          <input
+          <Label htmlFor="q">Search</Label>
+          <Input
             id="q"
             name="q"
             type="search"
             defaultValue={q}
             placeholder="Task title, description, or equipment"
-            className={`${inputClass} sm:mt-1`}
+            className="mt-1"
           />
         </div>
         <div>
-          <label
-            htmlFor="status"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Status
-          </label>
-          <select
+          <Label htmlFor="status">Status</Label>
+          <Select
             id="status"
             name="status"
             defaultValue={status ?? ''}
-            className={`${inputClass} sm:mt-1`}
+            statusColored
+            className={cn(inputBase, 'mt-1')}
           >
             <option value="">All statuses</option>
             {MAINTENANCE_STATUSES.map((value) => (
@@ -146,20 +179,15 @@ export default async function MaintenancePage({
                 {STATUS_LABELS[value]}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div>
-          <label
-            htmlFor="priority"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Priority
-          </label>
+          <Label htmlFor="priority">Priority</Label>
           <select
             id="priority"
             name="priority"
             defaultValue={priority ?? ''}
-            className={`${inputClass} sm:mt-1`}
+            className={cn(inputBase, 'mt-1')}
           >
             <option value="">All priorities</option>
             {PRIORITIES.map((value) => (
@@ -169,165 +197,81 @@ export default async function MaintenancePage({
             ))}
           </select>
         </div>
-        <Button type="submit" variant="outline">
-          Search
-        </Button>
+        <div className="flex items-end gap-2">
+          <Button type="submit" variant="outline">
+            Search
+          </Button>
+          {hasFilters && (
+            <Link href="/maintenance">
+              <Button variant="ghost">Clear</Button>
+            </Link>
+          )}
+        </div>
       </form>
 
-      {items.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center">
-          <Inbox aria-hidden className="size-8 text-gray-400" />
-          <h2 className="text-base font-semibold text-gray-900">
-            {hasFilters
-              ? 'No maintenance tasks match your search'
-              : 'No maintenance tasks scheduled yet'}
-          </h2>
-          <p className="max-w-md text-sm text-gray-600">
-            {hasFilters
-              ? 'Try a different search term, status, or priority, or clear the filters.'
-              : canCreate
-                ? 'Schedule the first maintenance task to start building the maintenance log.'
-                : 'Maintenance tasks scheduled by an administrator or supervisor will appear here.'}
-          </p>
+      {hasFilters ? (
+        <div className="flex flex-wrap gap-2">
+          {q && (
+            <FilterChip
+              label="Search"
+              value={q}
+              onRemove={() => {
+                const params = new URLSearchParams(window.location.search);
+                params.delete('q');
+                window.location.search = params.toString();
+              }}
+            />
+          )}
+          {status && (
+            <FilterChip
+              label="Status"
+              value={STATUS_LABELS[status as MaintenanceStatus]}
+              onRemove={() => {
+                const params = new URLSearchParams(window.location.search);
+                params.delete('status');
+                window.location.search = params.toString();
+              }}
+            />
+          )}
+          {priority && (
+            <FilterChip
+              label="Priority"
+              value={PRIORITY_LABELS[priority as Priority]}
+              onRemove={() => {
+                const params = new URLSearchParams(window.location.search);
+                params.delete('priority');
+                window.location.search = params.toString();
+              }}
+            />
+          )}
         </div>
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr className="text-left text-xs font-medium tracking-wide text-gray-500 uppercase">
-                  <th scope="col" className="px-4 py-3">
-                    Task
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Equipment
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Assigned to
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Scheduled
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Priority
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Status
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {items.map((task) => (
-                  <tr key={task.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/maintenance/${task.id}`}
-                        className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
-                      >
-                        {task.title}
-                      </Link>
-                      {task.description ? (
-                        <p className="mt-0.5 line-clamp-1 max-w-xs text-xs text-gray-500">
-                          {task.description}
-                        </p>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      <Link
-                        href={`/equipment/${task.equipment.id}`}
-                        className="text-indigo-600 hover:text-indigo-700 hover:underline"
-                      >
-                        {task.equipment.name}
-                      </Link>
-                      <span className="text-gray-500">
-                        {' '}
-                        · {task.equipment.assetNumber}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {task.assignedUser ? task.assignedUser.name : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {formatScheduledDate(task.scheduledDate)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <MaintenancePriorityBadge priority={task.priority} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <MaintenanceStatusBadge status={task.status} />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/maintenance/${task.id}`}
-                        className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
-                      >
-                        View
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-gray-500">
-              Showing {start}–{end} of {total}
-            </p>
-            {totalPages > 1 ? (
-              <div className="flex items-center gap-2">
-                {page > 1 ? (
-                  <Link
-                    href={pageHref(page - 1)}
-                    className={buttonVariants({
-                      variant: 'outline',
-                      size: 'sm',
-                    })}
-                  >
-                    Previous
-                  </Link>
-                ) : (
-                  <span
-                    aria-disabled
-                    className={cn(
-                      buttonVariants({ variant: 'outline', size: 'sm' }),
-                      'pointer-events-none opacity-50'
-                    )}
-                  >
-                    Previous
-                  </span>
-                )}
-                <span className="text-xs text-gray-500">
-                  Page {page} of {totalPages}
-                </span>
-                {page < totalPages ? (
-                  <Link
-                    href={pageHref(page + 1)}
-                    className={buttonVariants({
-                      variant: 'outline',
-                      size: 'sm',
-                    })}
-                  >
-                    Next
-                  </Link>
-                ) : (
-                  <span
-                    aria-disabled
-                    className={cn(
-                      buttonVariants({ variant: 'outline', size: 'sm' }),
-                      'pointer-events-none opacity-50'
-                    )}
-                  >
-                    Next
-                  </span>
-                )}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
+      ) : null}
+
+      <DataTable
+        columns={columns}
+        data={items}
+        keyExtractor={(item) => item.id}
+        rowAction={(item) => ({
+          href: `/maintenance/${item.id}`,
+          label: 'View',
+        })}
+        emptyState={{
+          icon: Inbox,
+          title: hasFilters ? 'No maintenance tasks match your search' : 'No maintenance tasks scheduled yet',
+          description: hasFilters
+            ? 'Try a different search term, status, or priority, or clear the filters.'
+            : 'Maintenance tasks scheduled by an administrator or supervisor will appear here.',
+        }}
+        pagination={{
+          start,
+          end,
+          total,
+          page,
+          totalPages,
+          pageHref,
+        }}
+        caption="Maintenance registry"
+      />
     </div>
   );
 }

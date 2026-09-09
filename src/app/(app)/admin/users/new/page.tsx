@@ -18,7 +18,7 @@ export default async function NewUserPage() {
         description="Create a new account. The user receives access immediately and signs in with the initial password you set."
       />
 
-      <div className="max-w-xl rounded-xl border border-gray-200 bg-white p-6">
+      <div className="max-w-xl rounded-xl border border-[var(--io-border)] bg-white p-6">
         <UserForm />
         <div className="mt-4">
           <Link href="/admin/users">

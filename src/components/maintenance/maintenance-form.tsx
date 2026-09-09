@@ -15,6 +15,10 @@ import {
   type MaintenanceActionResult,
 } from '@/server/actions/maintenance';
 import { Button } from '@/components/ui/button';
+import { Input, inputBase } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 
 const PRIORITY_LABELS: Record<Priority, string> = {
   LOW: 'Low',
@@ -44,10 +48,6 @@ export interface MaintenanceFormDefaults {
   scheduledDate: Date;
   priority: Priority;
 }
-
-const inputClass =
-  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
-const labelClass = 'block text-sm font-medium text-gray-700';
 
 function toDateTimeLocal(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -113,29 +113,27 @@ export function MaintenanceForm({
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
       <div>
-        <label htmlFor="title" className={labelClass}>
-          Task title
-        </label>
-        <input
+        <Label htmlFor="title">Task title</Label>
+        <Input
           id="title"
           type="text"
           placeholder="e.g. Monthly Calibration"
-          className={inputClass}
+          className="mt-1"
           {...register('title')}
         />
         {errors.title && (
-          <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
+          <p className="mt-1 text-sm text-destructive-foreground">
+            {errors.title.message}
+          </p>
         )}
       </div>
 
       <div className="grid gap-5 md:grid-cols-2">
         <div>
-          <label htmlFor="equipmentId" className={labelClass}>
-            Equipment
-          </label>
+          <Label htmlFor="equipmentId">Equipment</Label>
           <select
             id="equipmentId"
-            className={inputClass}
+            className={cn(inputBase, 'mt-1')}
             {...register('equipmentId')}
           >
             <option value="">Select equipment</option>
@@ -146,19 +144,17 @@ export function MaintenanceForm({
             ))}
           </select>
           {errors.equipmentId && (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-sm text-destructive-foreground">
               {errors.equipmentId.message}
             </p>
           )}
         </div>
 
         <div>
-          <label htmlFor="assignedUserId" className={labelClass}>
-            Assigned to
-          </label>
+          <Label htmlFor="assignedUserId">Assigned to</Label>
           <select
             id="assignedUserId"
-            className={inputClass}
+            className={cn(inputBase, 'mt-1')}
             {...register('assignedUserId')}
           >
             <option value="">Select a user</option>
@@ -169,34 +165,34 @@ export function MaintenanceForm({
             ))}
           </select>
           {errors.assignedUserId && (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-sm text-destructive-foreground">
               {errors.assignedUserId.message}
             </p>
           )}
         </div>
 
         <div>
-          <label htmlFor="scheduledDate" className={labelClass}>
-            Scheduled date
-          </label>
-          <input
+          <Label htmlFor="scheduledDate">Scheduled date</Label>
+          <Input
             id="scheduledDate"
             type="datetime-local"
-            className={inputClass}
+            className="mt-1"
             {...register('scheduledDate')}
           />
           {errors.scheduledDate && (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-sm text-destructive-foreground">
               {errors.scheduledDate.message}
             </p>
           )}
         </div>
 
         <div>
-          <label htmlFor="priority" className={labelClass}>
-            Priority
-          </label>
-          <select id="priority" className={inputClass} {...register('priority')}>
+          <Label htmlFor="priority">Priority</Label>
+          <select
+            id="priority"
+            className={cn(inputBase, 'mt-1')}
+            {...register('priority')}
+          >
             {PRIORITIES.map((priority) => (
               <option key={priority} value={priority}>
                 {PRIORITY_LABELS[priority]}
@@ -204,7 +200,7 @@ export function MaintenanceForm({
             ))}
           </select>
           {errors.priority && (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-sm text-destructive-foreground">
               {errors.priority.message}
             </p>
           )}
@@ -212,25 +208,23 @@ export function MaintenanceForm({
       </div>
 
       <div>
-        <label htmlFor="description" className={labelClass}>
-          Description
-        </label>
-        <textarea
+        <Label htmlFor="description">Description</Label>
+        <Textarea
           id="description"
           rows={4}
           placeholder="What work needs to be done and any relevant details"
-          className={inputClass}
+          className="mt-1"
           {...register('description')}
         />
         {errors.description && (
-          <p className="mt-1 text-sm text-red-600">
+          <p className="mt-1 text-sm text-destructive-foreground">
             {errors.description.message}
           </p>
         )}
       </div>
 
       {actionError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-lg border border-destructive-foreground/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-foreground">
           {actionError}
         </div>
       )}

@@ -1,10 +1,10 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   BarChart3,
-  CalendarClock,
+  Factory,
   History,
   LayoutDashboard,
-  TriangleAlert,
+  Timer,
   Users,
   Wrench,
 } from 'lucide-react';
@@ -43,21 +43,21 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         href: '/equipment',
         label: 'Equipment',
         description: 'The asset registry',
-        icon: Wrench,
+        icon: Factory,
         permission: PERMISSIONS.equipmentView,
       },
       {
         href: '/maintenance',
         label: 'Maintenance',
         description: 'Scheduled and completed work',
-        icon: CalendarClock,
+        icon: Wrench,
         permission: PERMISSIONS.maintenanceView,
       },
       {
         href: '/downtime',
         label: 'Downtime',
         description: 'Production loss events',
-        icon: TriangleAlert,
+        icon: Timer,
         permission: PERMISSIONS.appView,
       },
       {
@@ -67,11 +67,6 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         icon: BarChart3,
         permission: PERMISSIONS.reportsView,
       },
-    ],
-  },
-  {
-    title: 'Administration',
-    items: [
       {
         href: '/audit',
         label: 'Audit Log',
@@ -79,6 +74,11 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         icon: History,
         permission: PERMISSIONS.auditView,
       },
+    ],
+  },
+  {
+    title: 'Administration',
+    items: [
       {
         href: '/admin/users',
         label: 'Users',

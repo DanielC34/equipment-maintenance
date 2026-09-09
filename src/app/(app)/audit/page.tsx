@@ -14,6 +14,16 @@ import {
 } from '@/server/audit';
 import { PageHeader } from '@/components/page-header';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { Input, inputBase } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { AuditActionBadge, AuditEntityBadge } from '@/components/audit/audit-badges';
 
@@ -37,9 +47,6 @@ const ENTITY_OPTION_LABELS: Record<string, string> = {
   DOWNTIME_EVENT: 'Downtime event',
   USER: 'User',
 };
-
-const inputClass =
-  'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
 
 function formatDateTime(date: Date): string {
   return new Intl.DateTimeFormat('en-US', {
@@ -115,36 +122,26 @@ export default async function AuditPage({
 
       <form
         method="GET"
-        className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:flex-wrap sm:items-end"
+        className="flex flex-col gap-3 rounded-xl border border-[var(--io-border)] bg-white p-4 sm:flex-row sm:flex-wrap sm:items-end"
       >
         <div className="min-w-0 flex-1 sm:min-w-48">
-          <label
-            htmlFor="q"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Search
-          </label>
-          <input
+          <Label htmlFor="q">Search</Label>
+          <Input
             id="q"
             name="q"
             type="search"
             defaultValue={q}
             placeholder="User, entity label, or record id"
-            className={`${inputClass} sm:mt-1`}
+            className="mt-1"
           />
         </div>
         <div className="sm:min-w-44">
-          <label
-            htmlFor="actorId"
-            className="block text-sm font-medium text-gray-700"
-          >
-            User
-          </label>
+          <Label htmlFor="actorId">User</Label>
           <select
             id="actorId"
             name="actorId"
             defaultValue={actorId ?? ''}
-            className={`${inputClass} sm:mt-1`}
+            className={cn(inputBase, 'mt-1')}
           >
             <option value="">All users</option>
             {actors.map((actor) => (
@@ -155,17 +152,12 @@ export default async function AuditPage({
           </select>
         </div>
         <div>
-          <label
-            htmlFor="action"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Action
-          </label>
+          <Label htmlFor="action">Action</Label>
           <select
             id="action"
             name="action"
             defaultValue={action ?? ''}
-            className={`${inputClass} sm:mt-1`}
+            className={cn(inputBase, 'mt-1')}
           >
             <option value="">All actions</option>
             {AUDIT_ACTIONS.map((value) => (
@@ -176,17 +168,12 @@ export default async function AuditPage({
           </select>
         </div>
         <div>
-          <label
-            htmlFor="entityType"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Entity
-          </label>
+          <Label htmlFor="entityType">Entity</Label>
           <select
             id="entityType"
             name="entityType"
             defaultValue={entityType ?? ''}
-            className={`${inputClass} sm:mt-1`}
+            className={cn(inputBase, 'mt-1')}
           >
             <option value="">All entities</option>
             {AUDIT_ENTITY_TYPES.map((value) => (
@@ -197,33 +184,23 @@ export default async function AuditPage({
           </select>
         </div>
         <div>
-          <label
-            htmlFor="from"
-            className="block text-sm font-medium text-gray-700"
-          >
-            From
-          </label>
-          <input
+          <Label htmlFor="from">From</Label>
+          <Input
             id="from"
             name="from"
             type="date"
             defaultValue={from ?? ''}
-            className={`${inputClass} sm:mt-1`}
+            className="mt-1"
           />
         </div>
         <div>
-          <label
-            htmlFor="to"
-            className="block text-sm font-medium text-gray-700"
-          >
-            To
-          </label>
-          <input
+          <Label htmlFor="to">To</Label>
+          <Input
             id="to"
             name="to"
             type="date"
             defaultValue={to ?? ''}
-            className={`${inputClass} sm:mt-1`}
+            className="mt-1"
           />
         </div>
         <div className="flex gap-2">
@@ -239,7 +216,7 @@ export default async function AuditPage({
       </form>
 
       {items.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--io-border)] bg-white px-6 py-16 text-center">
           <Inbox aria-hidden className="size-8 text-gray-400" />
           <h2 className="text-base font-semibold text-gray-900">
             {hasFilters
@@ -253,77 +230,70 @@ export default async function AuditPage({
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr className="text-left text-xs font-medium tracking-wide text-gray-500 uppercase">
-                  <th scope="col" className="px-4 py-3">
-                    When
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Who
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Action
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Entity
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    What happened
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {items.map((entry) => {
-                  const href = entityHref(entry.entityType, entry.entityId);
-                  return (
-                    <tr key={entry.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">
-                        {formatDateTime(entry.createdAt)}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="font-medium text-gray-900">
-                          {entry.actor.name}
-                        </span>
-                        <span className="ml-2 text-xs text-gray-500">
-                          {entry.actor.role.toLowerCase().replaceAll('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <AuditActionBadge action={entry.action} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <AuditEntityBadge entityType={entry.entityType} />
-                          {href ? (
-                            <Link
-                              href={href}
-                              className="text-indigo-600 hover:text-indigo-700 hover:underline"
-                            >
-                              {entry.entityLabel ?? 'View'}
-                            </Link>
-                          ) : (
-                            <span className="text-gray-700">
-                              {entry.entityLabel ?? ''}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-700">
-                        {describeAudit(entry)}
-                        <span className="ml-1 font-mono text-xs text-gray-400">
-                          {entry.entityId}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="overflow-hidden rounded-xl border border-[var(--io-border)] bg-white">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>When</TableHead>
+                <TableHead>Who</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>Entity</TableHead>
+                <TableHead>What happened</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((entry) => {
+                const href = entityHref(entry.entityType, entry.entityId);
+                return (
+                  <TableRow key={entry.id}>
+                    <TableCell className="whitespace-nowrap text-gray-700">
+                      {formatDateTime(entry.createdAt)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <span className="font-medium text-gray-900">
+                        {entry.actor.name}
+                      </span>
+                      <span className="ml-2 text-xs text-gray-500">
+                        {entry.actor.role
+                          .toLowerCase()
+                          .replaceAll('_', ' ')}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <AuditActionBadge action={entry.action} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <AuditEntityBadge entityType={entry.entityType} />
+                        {href ? (
+                          <Link
+                            href={href}
+                            className="text-indigo-600 hover:text-indigo-700 hover:underline"
+                          >
+                            {entry.entityLabel ?? 'View'}
+                          </Link>
+                        ) : (
+                          <span className="text-gray-700">
+                            {entry.entityLabel ?? ''}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      <p>{describeAudit(entry)}</p>
+                      <p
+                        className="mt-0.5 max-w-md truncate font-mono text-xs text-gray-400"
+                        title={entry.entityId}
+                      >
+                        {entry.entityId}
+                      </p>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+          <div className="flex flex-col gap-3 border-t border-[var(--io-border)] bg-[var(--io-bg)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-gray-500">
               Showing {start}–{end} of {total}
             </p>

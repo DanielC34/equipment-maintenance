@@ -17,7 +17,7 @@ export default async function NewEquipmentPage() {
         title="Register equipment"
         description="Add a new asset to the equipment registry."
       />
-      <div className="rounded-xl border border-gray-200 bg-white p-6">
+      <div className="max-w-xl rounded-xl border border-[var(--io-border)] bg-white p-6">
         <EquipmentForm factories={factories} />
       </div>
     </div>

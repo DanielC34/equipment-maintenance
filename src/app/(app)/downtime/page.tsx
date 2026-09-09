@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Inbox, Plus, Play } from 'lucide-react';
+import { Inbox, Plus, TriangleAlert } from 'lucide-react';
 import {
   DOWNTIME_STATUSES,
   downtimeFilterSchema,
@@ -14,10 +14,15 @@ import {
 } from '@/server/downtime';
 import { listEquipmentsForSelect } from '@/server/maintenance';
 import { PageHeader } from '@/components/page-header';
-import { Button, buttonVariants } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { DowntimeStatusBadge } from '@/components/downtime/downtime-status-badge';
+import { Button } from '@/components/ui/button';
+import { Input, inputBase } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { DataTable } from '@/components/ui/data-table';
+import { FilterChip } from '@/components/ui/filter-chip';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { DowntimeReasonBadge } from '@/components/downtime/downtime-reason-badge';
+import { cn } from '@/lib/utils';
 
 export const metadata = {
   title: 'Downtime | EMMS',
@@ -28,9 +33,6 @@ const STATUS_LABELS: Record<DowntimeStatus, string> = {
   RESOLVED: 'Resolved',
 };
 
-const inputClass =
-  'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
-
 function formatDateTime(date: Date): string {
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
@@ -39,6 +41,18 @@ function formatDateTime(date: Date): string {
     hour: 'numeric',
     minute: '2-digit',
   }).format(date);
+}
+
+function openEquipmentNames(
+  events: { status: DowntimeStatus; equipment: { name: string } }[]
+): string {
+  const names = events
+    .filter((event) => event.status === 'OPEN')
+    .map((event) => event.equipment.name);
+  if (names.length <= 3) {
+    return names.join(', ');
+  }
+  return `${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
 }
 
 export default async function DowntimePage({
@@ -61,6 +75,7 @@ export default async function DowntimePage({
   const canRecord = hasPermission(session, PERMISSIONS.downtimeRecord);
   const hasFilters = Boolean(q || equipmentId || status || from || to);
   const openCount = items.filter((event) => event.status === 'OPEN').length;
+  const downEquipment = openEquipmentNames(items);
   const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, total);
 
@@ -93,38 +108,43 @@ export default async function DowntimePage({
         }
       />
 
+      {openCount > 0 && !hasFilters ? (
+        <div className="flex flex-col gap-1 rounded-xl border border-red-200 bg-red-50/40 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
+          <div className="flex items-center gap-2">
+            <TriangleAlert aria-hidden className="size-4 shrink-0 text-red-600" />
+            <span className="text-sm font-medium text-red-700">
+              {openCount} open {openCount === 1 ? 'event' : 'events'}
+            </span>
+          </div>
+          <p className="text-sm text-red-700">
+            {downEquipment} currently down — resolve to record the end time and
+            duration.
+          </p>
+        </div>
+      ) : null}
+
       <form
         method="GET"
-        className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:flex-wrap sm:items-end"
+        className="flex flex-col gap-3 rounded-xl border border-[var(--io-border)] bg-white p-4 sm:flex-row sm:flex-wrap sm:items-end"
       >
         <div className="min-w-0 flex-1 sm:min-w-48">
-          <label
-            htmlFor="q"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Search
-          </label>
-          <input
+          <Label htmlFor="q">Search</Label>
+          <Input
             id="q"
             name="q"
             type="search"
             defaultValue={q}
-            placeholder="Equipment, asset tag, reporter, or notes"
-            className={`${inputClass} sm:mt-1`}
+            placeholder="Equipment, asset number, reporter, or notes"
+            className="mt-1"
           />
         </div>
         <div className="sm:min-w-40">
-          <label
-            htmlFor="equipmentId"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Equipment
-          </label>
+          <Label htmlFor="equipmentId">Equipment</Label>
           <select
             id="equipmentId"
             name="equipmentId"
             defaultValue={equipmentId ?? ''}
-            className={`${inputClass} sm:mt-1`}
+            className={cn(inputBase, 'mt-1')}
           >
             <option value="">All equipment</option>
             {equipments.map((equipment) => (
@@ -135,17 +155,13 @@ export default async function DowntimePage({
           </select>
         </div>
         <div>
-          <label
-            htmlFor="status"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Status
-          </label>
-          <select
+          <Label htmlFor="status">Status</Label>
+          <Select
             id="status"
             name="status"
             defaultValue={status ?? ''}
-            className={`${inputClass} sm:mt-1`}
+            statusColored
+            className={cn(inputBase, 'mt-1')}
           >
             <option value="">All statuses</option>
             {DOWNTIME_STATUSES.map((value) => (
@@ -153,36 +169,26 @@ export default async function DowntimePage({
                 {STATUS_LABELS[value]}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div>
-          <label
-            htmlFor="from"
-            className="block text-sm font-medium text-gray-700"
-          >
-            From
-          </label>
-          <input
+          <Label htmlFor="from">From</Label>
+          <Input
             id="from"
             name="from"
             type="date"
             defaultValue={from ?? ''}
-            className={`${inputClass} sm:mt-1`}
+            className="mt-1"
           />
         </div>
         <div>
-          <label
-            htmlFor="to"
-            className="block text-sm font-medium text-gray-700"
-          >
-            To
-          </label>
-          <input
+          <Label htmlFor="to">To</Label>
+          <Input
             id="to"
             name="to"
             type="date"
             defaultValue={to ?? ''}
-            className={`${inputClass} sm:mt-1`}
+            className="mt-1"
           />
         </div>
         <div className="flex gap-2">
@@ -197,168 +203,149 @@ export default async function DowntimePage({
         </div>
       </form>
 
-      {openCount > 0 && !hasFilters ? (
-        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          <Play aria-hidden className="size-4 shrink-0" />
-          <span>
-            {openCount} open {openCount === 1 ? 'event is' : 'events are'}{' '}
-            currently ongoing — resolved events record their end time.
-          </span>
+      {hasFilters ? (
+        <div className="flex flex-wrap gap-2">
+          {q && (
+            <FilterChip
+              label="Search"
+              value={q}
+              onRemove={() => {
+                const params = new URLSearchParams(window.location.search);
+                params.delete('q');
+                window.location.search = params.toString();
+              }}
+            />
+          )}
+          {equipmentId && (
+            <FilterChip
+              label="Equipment"
+              value={equipments.find((e) => e.id === equipmentId)?.name ?? equipmentId}
+              onRemove={() => {
+                const params = new URLSearchParams(window.location.search);
+                params.delete('equipmentId');
+                window.location.search = params.toString();
+              }}
+            />
+          )}
+          {status && (
+            <FilterChip
+              label="Status"
+              value={STATUS_LABELS[status as DowntimeStatus]}
+              onRemove={() => {
+                const params = new URLSearchParams(window.location.search);
+                params.delete('status');
+                window.location.search = params.toString();
+              }}
+            />
+          )}
+          {from && (
+            <FilterChip
+              label="From"
+              value={from}
+              onRemove={() => {
+                const params = new URLSearchParams(window.location.search);
+                params.delete('from');
+                window.location.search = params.toString();
+              }}
+            />
+          )}
+          {to && (
+            <FilterChip
+              label="To"
+              value={to}
+              onRemove={() => {
+                const params = new URLSearchParams(window.location.search);
+                params.delete('to');
+                window.location.search = params.toString();
+              }}
+            />
+          )}
         </div>
       ) : null}
 
-      {items.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center">
-          <Inbox aria-hidden className="size-8 text-gray-400" />
-          <h2 className="text-base font-semibold text-gray-900">
-            {hasFilters
-              ? 'No downtime events match your filters'
-              : 'No downtime events recorded yet'}
-          </h2>
-          <p className="max-w-md text-sm text-gray-600">
-            {hasFilters
-              ? 'Try a different search term or clear the filters.'
-              : canRecord
-                ? 'Record the first downtime event to start tracking production loss.'
-                : 'Downtime events recorded by an operator or administrator will appear here.'}
-          </p>
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr className="text-left text-xs font-medium tracking-wide text-gray-500 uppercase">
-                  <th scope="col" className="px-4 py-3">
-                    Started
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Equipment
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Reason
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Duration
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Reported by
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Status
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Ended
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {items.map((event) => (
-                  <tr key={event.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">
-                      {formatDateTime(event.startedAt)}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      <Link
-                        href={`/equipment/${event.equipment.id}`}
-                        className="text-indigo-600 hover:text-indigo-700 hover:underline"
-                      >
-                        {event.equipment.name}
-                      </Link>
-                      <span className="text-gray-500">
-                        {' '}
-                        · {event.equipment.assetNumber}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <DowntimeReasonBadge reason={event.reason} />
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">
-                      {formatDowntimeDuration(
-                        downtimeDurationMinutes(event)
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {event.reportedBy.name}
-                    </td>
-                    <td className="px-4 py-3">
-                      <DowntimeStatusBadge status={event.status} />
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">
-                      {event.endedAt ? formatDateTime(event.endedAt) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/downtime/${event.id}`}
-                        className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
-                      >
-                        View
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-gray-500">
-              Showing {start}–{end} of {total}
-            </p>
-            {totalPages > 1 ? (
-              <div className="flex items-center gap-2">
-                {page > 1 ? (
-                  <Link
-                    href={pageHref(page - 1)}
-                    className={buttonVariants({
-                      variant: 'outline',
-                      size: 'sm',
-                    })}
-                  >
-                    Previous
-                  </Link>
-                ) : (
-                  <span
-                    aria-disabled
-                    className={cn(
-                      buttonVariants({ variant: 'outline', size: 'sm' }),
-                      'pointer-events-none opacity-50'
-                    )}
-                  >
-                    Previous
-                  </span>
-                )}
-                <span className="text-xs text-gray-500">
-                  Page {page} of {totalPages}
-                </span>
-                {page < totalPages ? (
-                  <Link
-                    href={pageHref(page + 1)}
-                    className={buttonVariants({
-                      variant: 'outline',
-                      size: 'sm',
-                    })}
-                  >
-                    Next
-                  </Link>
-                ) : (
-                  <span
-                    aria-disabled
-                    className={cn(
-                      buttonVariants({ variant: 'outline', size: 'sm' }),
-                      'pointer-events-none opacity-50'
-                    )}
-                  >
-                    Next
-                  </span>
-                )}
+      <DataTable
+        columns={[
+          {
+            key: 'startedAt',
+            header: 'Started',
+            render: (event: typeof items[0]) => (
+              <span className="whitespace-nowrap text-gray-700">{formatDateTime(event.startedAt)}</span>
+            ),
+          },
+          {
+            key: 'equipment',
+            header: 'Equipment',
+            render: (event: typeof items[0]) => (
+              <div>
+                <Link
+                  href={`/equipment/${event.equipment.id}`}
+                  className="font-medium text-[var(--io-accent)] hover:underline"
+                >
+                  {event.equipment.name}
+                </Link>
+                <span className="text-gray-500"> · {event.equipment.assetNumber}</span>
               </div>
-            ) : null}
-          </div>
-        </div>
-      )}
+            ),
+          },
+          {
+            key: 'reason',
+            header: 'Reason',
+            render: (event: typeof items[0]) => <DowntimeReasonBadge reason={event.reason} />,
+          },
+          {
+            key: 'duration',
+            header: 'Duration',
+            render: (event: typeof items[0]) => (
+              event.status === 'OPEN' ? (
+                <span className="font-medium text-red-600">Ongoing</span>
+              ) : (
+                <span className="text-gray-700">{formatDowntimeDuration(downtimeDurationMinutes(event))}</span>
+              )
+            ),
+          },
+          { key: 'reportedBy.name', header: 'Reported by' },
+          { key: 'status', header: 'Status', render: (e: typeof items[0]) => <StatusBadge status={e.status} /> },
+          { key: 'endedAt', header: 'Ended', render: (e: typeof items[0]) => (e.endedAt ? formatDateTime(e.endedAt) : '—') },
+          {
+            key: 'actions',
+            header: 'Actions',
+            className: 'text-right',
+            render: (event: typeof items[0]) => (
+              <Link
+                href={`/downtime/${event.id}`}
+                className="text-sm font-medium text-[var(--io-accent)] hover:underline"
+              >
+                View
+              </Link>
+            ),
+          },
+        ]}
+        data={items}
+        keyExtractor={(item) => item.id}
+        rowAction={(item) => ({
+          href: `/downtime/${item.id}`,
+          label: 'View',
+        })}
+        emptyState={{
+          icon: Inbox,
+          title: hasFilters ? 'No downtime events match your filters' : 'No downtime events recorded yet',
+          description: hasFilters
+            ? 'Try a different search term or clear the filters.'
+            : canRecord
+              ? 'Record the first downtime event to start tracking production loss.'
+              : 'Downtime events recorded by an operator or administrator will appear here.',
+          action: canRecord ? { href: '/downtime/new', label: 'Record downtime' } : undefined,
+        }}
+        pagination={{
+          start,
+          end,
+          total,
+          page,
+          totalPages,
+          pageHref,
+        }}
+        caption="Downtime events"
+      />
     </div>
   );
 }

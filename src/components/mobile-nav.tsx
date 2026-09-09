@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import type { Session } from 'next-auth';
 import { Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AppNav } from '@/components/app-nav';
+import { Brand } from '@/components/brand';
 
 export function MobileNav({ session }: { session: Session }) {
   const [open, setOpen] = useState(false);
@@ -46,15 +46,14 @@ export function MobileNav({ session }: { session: Session }) {
             aria-hidden="true"
             onClick={() => setOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-white shadow-2xl">
-            <div className="flex h-16 shrink-0 items-center justify-between border-b border-gray-200 pr-2 pl-4">
-              <Link
-                href="/dashboard"
-                className="text-base font-bold tracking-tight text-indigo-600"
-                onClick={() => setOpen(false)}
-              >
-                EMMS
-              </Link>
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigation menu"
+            className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col border-r border-[var(--io-border)] bg-white shadow-lg"
+          >
+            <div className="flex h-20 shrink-0 items-center justify-between border-b border-[var(--io-border)] pr-2 pl-4">
+              <Brand onNavigate={() => setOpen(false)} />
               <Button
                 variant="ghost"
                 size="icon"
@@ -64,7 +63,11 @@ export function MobileNav({ session }: { session: Session }) {
                 <X aria-hidden className="size-5" />
               </Button>
             </div>
-            <AppNav session={session} onNavigate={() => setOpen(false)} />
+            <AppNav
+              session={session}
+              label="Mobile navigation"
+              onNavigate={() => setOpen(false)}
+            />
           </aside>
         </div>
       ) : null}

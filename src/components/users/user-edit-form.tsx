@@ -5,14 +5,17 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { Role } from '@prisma/client';
-import { USER_ROLES, userUpdateSchema, type UserUpdateValues } from '@/lib/validations';
+import {
+  USER_ROLES,
+  userUpdateSchema,
+  type UserUpdateValues,
+} from '@/lib/validations';
 import { ROLE_LABELS } from '@/lib/roles';
 import { updateUser, type UserActionResult } from '@/server/actions/users';
 import { Button } from '@/components/ui/button';
-
-const inputClass =
-  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
-const labelClass = 'block text-sm font-medium text-gray-700';
+import { inputBase } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 export function UserEditForm({
   userId,
@@ -62,10 +65,12 @@ export function UserEditForm({
       ) : null}
 
       <div>
-        <label htmlFor="role" className={labelClass}>
-          Role
-        </label>
-        <select id="role" className={inputClass} {...register('role')}>
+        <Label htmlFor="role">Role</Label>
+        <select
+          id="role"
+          className={cn(inputBase, 'mt-1')}
+          {...register('role')}
+        >
           {USER_ROLES.map((role) => (
             <option key={role} value={role}>
               {ROLE_LABELS[role]}
@@ -77,15 +82,14 @@ export function UserEditForm({
           matrix.
         </p>
         {errors.role && (
-          <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>
+          <p className="mt-1 text-sm text-destructive-foreground">
+            {errors.role.message}
+          </p>
         )}
       </div>
 
       <div>
-        <label
-          htmlFor="active"
-          className="flex items-center gap-2 text-sm font-medium text-gray-700"
-        >
+        <Label htmlFor="active" className="flex items-center gap-2">
           <input
             id="active"
             type="checkbox"
@@ -93,18 +97,20 @@ export function UserEditForm({
             {...register('active')}
           />
           Account is active
-        </label>
+        </Label>
         <p className="mt-1 text-xs text-gray-500">
           Inactive users cannot sign in and are hidden from operational
           assignment lists.
         </p>
         {errors.active && (
-          <p className="mt-1 text-sm text-red-600">{errors.active.message}</p>
+          <p className="mt-1 text-sm text-destructive-foreground">
+            {errors.active.message}
+          </p>
         )}
       </div>
 
       {actionError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-lg border border-destructive-foreground/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-foreground">
           {actionError}
         </div>
       )}

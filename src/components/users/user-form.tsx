@@ -3,14 +3,17 @@
 import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { USER_ROLES, userCreateSchema, type UserCreateValues } from '@/lib/validations';
+import {
+  USER_ROLES,
+  userCreateSchema,
+  type UserCreateValues,
+} from '@/lib/validations';
 import { ROLE_LABELS } from '@/lib/roles';
 import { createUser, type UserActionResult } from '@/server/actions/users';
 import { Button } from '@/components/ui/button';
-
-const inputClass =
-  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
-const labelClass = 'block text-sm font-medium text-gray-700';
+import { Input, inputBase } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 export function UserForm() {
   const [actionError, setActionError] = useState<string | null>(null);
@@ -45,42 +48,44 @@ export function UserForm() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
       <div>
-        <label htmlFor="name" className={labelClass}>
-          Name
-        </label>
-        <input
+        <Label htmlFor="name">Name</Label>
+        <Input
           id="name"
           type="text"
           placeholder="e.g. Jordan Smith"
-          className={inputClass}
+          className="mt-1"
           {...register('name')}
         />
         {errors.name && (
-          <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
+          <p className="mt-1 text-sm text-destructive-foreground">
+            {errors.name.message}
+          </p>
         )}
       </div>
 
       <div>
-        <label htmlFor="email" className={labelClass}>
-          Email
-        </label>
-        <input
+        <Label htmlFor="email">Email</Label>
+        <Input
           id="email"
           type="email"
           placeholder="e.g. jordan.smith@emms.dev"
-          className={inputClass}
+          className="mt-1"
           {...register('email')}
         />
         {errors.email && (
-          <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+          <p className="mt-1 text-sm text-destructive-foreground">
+            {errors.email.message}
+          </p>
         )}
       </div>
 
       <div>
-        <label htmlFor="role" className={labelClass}>
-          Role
-        </label>
-        <select id="role" className={inputClass} {...register('role')}>
+        <Label htmlFor="role">Role</Label>
+        <select
+          id="role"
+          className={cn(inputBase, 'mt-1')}
+          {...register('role')}
+        >
           {USER_ROLES.map((role) => (
             <option key={role} value={role}>
               {ROLE_LABELS[role]}
@@ -88,20 +93,20 @@ export function UserForm() {
           ))}
         </select>
         {errors.role && (
-          <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>
+          <p className="mt-1 text-sm text-destructive-foreground">
+            {errors.role.message}
+          </p>
         )}
       </div>
 
       <div>
-        <label htmlFor="password" className={labelClass}>
-          Initial password
-        </label>
-        <input
+        <Label htmlFor="password">Initial password</Label>
+        <Input
           id="password"
           type="password"
           autoComplete="new-password"
           placeholder="At least 8 characters"
-          className={inputClass}
+          className="mt-1"
           {...register('password')}
         />
         <p className="mt-1 text-xs text-gray-500">
@@ -109,12 +114,14 @@ export function UserForm() {
           secure hash and cannot be recovered.
         </p>
         {errors.password && (
-          <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+          <p className="mt-1 text-sm text-destructive-foreground">
+            {errors.password.message}
+          </p>
         )}
       </div>
 
       {actionError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-lg border border-destructive-foreground/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-foreground">
           {actionError}
         </div>
       )}

@@ -9,7 +9,7 @@ import {
 } from '@/server/downtime';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { DowntimeStatusBadge } from '@/components/downtime/downtime-status-badge';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { DowntimeReasonBadge } from '@/components/downtime/downtime-reason-badge';
 import { DowntimeResolveForm } from '@/components/downtime/downtime-resolve-form';
 
@@ -69,25 +69,26 @@ export default async function DowntimeEventDetailPage({
         }
       />
 
-      <div className="rounded-xl border border-gray-200 bg-white">
+      <div className="rounded-xl border border-[var(--io-border)] bg-white">
         <dl className="grid gap-x-6 gap-y-4 p-6 sm:grid-cols-2">
           <div>
             <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase">
               Status
             </dt>
             <dd className="mt-1">
-              <DowntimeStatusBadge status={event.status} />
+              <StatusBadge status={event.status} />
             </dd>
           </div>
           <div>
             <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase">
               Duration
             </dt>
-            <dd className="mt-1 text-sm text-gray-900">
-              {duration}
-              {minutes !== null && minutes > 0 ? (
-                <span className="text-gray-500"> ({minutes} minutes)</span>
-              ) : null}
+            <dd className="mt-1 text-sm">
+              {event.status === 'OPEN' ? (
+                <span className="font-medium text-red-600">Ongoing</span>
+              ) : (
+                <span className="text-gray-900 tabular-nums">{duration}</span>
+              )}
             </dd>
           </div>
           <div>
@@ -132,23 +133,24 @@ export default async function DowntimeEventDetailPage({
       </div>
 
       {event.status === 'OPEN' && canResolve ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/50">
-          <div className="flex items-center gap-2 border-b border-amber-100 px-6 py-4">
-            <TriangleAlert aria-hidden className="size-4 text-amber-600" />
+        <div className="rounded-xl border border-red-200 bg-red-50/40">
+          <div className="flex items-center gap-2 border-b border-red-100 px-6 py-4">
+            <TriangleAlert aria-hidden className="size-4 text-red-600" />
             <h2 className="text-base font-semibold text-gray-900">
-              Resolve this event
+              This event is open
             </h2>
           </div>
           <div className="max-w-md p-6">
             <p className="mb-4 text-sm text-gray-600">
-              Set the end time to close the event and record its duration.
+              Resolve the event by setting an end time. This closes it and
+              records the total duration of the downtime.
             </p>
             <DowntimeResolveForm eventId={event.id} />
           </div>
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-gray-200 bg-white">
+      <div className="rounded-xl border border-[var(--io-border)] bg-white">
         <div className="border-b border-gray-100 px-6 py-4">
           <h2 className="text-base font-semibold text-gray-900">Equipment</h2>
         </div>
@@ -168,7 +170,7 @@ export default async function DowntimeEventDetailPage({
           </div>
           <div>
             <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-              Asset tag
+              Asset number
             </dt>
             <dd className="mt-1 text-sm text-gray-900">
               {event.equipment.assetNumber}
@@ -197,7 +199,7 @@ export default async function DowntimeEventDetailPage({
         </dl>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white">
+      <div className="rounded-xl border border-[var(--io-border)] bg-white">
         <div className="border-b border-gray-100 px-6 py-4">
           <h2 className="text-base font-semibold text-gray-900">Reporter</h2>
         </div>
