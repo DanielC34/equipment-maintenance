@@ -81,7 +81,11 @@ export default async function EquipmentPage({
       ),
     },
     { key: 'assetNumber', header: 'Asset number' },
-    { key: 'factory.name', header: 'Factory' },
+    {
+      key: 'factory',
+      header: 'Factory',
+      render: (equipment: (typeof items)[0]) => equipment.factory.name,
+    },
     {
       key: 'criticality',
       header: 'Criticality',

@@ -297,7 +297,11 @@ export default async function DowntimePage({
                 </span>
               ),
           },
-          { key: 'reportedBy.name', header: 'Reported by' },
+          {
+            key: 'reportedBy',
+            header: 'Reported by',
+            render: (event: (typeof items)[0]) => event.reportedBy.name,
+          },
           {
             key: 'status',
             header: 'Status',
