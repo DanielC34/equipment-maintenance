@@ -14,6 +14,10 @@ import {
   type DowntimeActionResult,
 } from '@/server/actions/downtime';
 import { Button } from '@/components/ui/button';
+import { Input, inputBase } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 
 const REASON_LABELS: Record<DowntimeReason, string> = {
   MECHANICAL: 'Mechanical',
@@ -31,10 +35,6 @@ export interface DowntimeFormEquipment {
   name: string;
   assetNumber: string;
 }
-
-const inputClass =
-  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
-const labelClass = 'block text-sm font-medium text-gray-700';
 
 export function DowntimeForm({
   equipments,
@@ -74,12 +74,10 @@ export function DowntimeForm({
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
       <div>
-        <label htmlFor="equipmentId" className={labelClass}>
-          Equipment
-        </label>
+        <Label htmlFor="equipmentId">Equipment</Label>
         <select
           id="equipmentId"
-          className={inputClass}
+          className={cn(inputBase, 'mt-1')}
           {...register('equipmentId')}
         >
           <option value="">Select equipment</option>
@@ -90,7 +88,7 @@ export function DowntimeForm({
           ))}
         </select>
         {errors.equipmentId && (
-          <p className="mt-1 text-sm text-red-600">
+          <p className="mt-1 text-sm text-destructive-foreground">
             {errors.equipmentId.message}
           </p>
         )}
@@ -98,30 +96,26 @@ export function DowntimeForm({
 
       <div className="grid gap-5 md:grid-cols-2">
         <div>
-          <label htmlFor="startedAt" className={labelClass}>
-            Start date/time
-          </label>
-          <input
+          <Label htmlFor="startedAt">Start date/time</Label>
+          <Input
             id="startedAt"
             type="datetime-local"
-            className={inputClass}
+            className="mt-1"
             {...register('startedAt')}
           />
           {errors.startedAt && (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-sm text-destructive-foreground">
               {errors.startedAt.message}
             </p>
           )}
         </div>
 
         <div>
-          <label htmlFor="endedAt" className={labelClass}>
-            End date/time
-          </label>
-          <input
+          <Label htmlFor="endedAt">End date/time</Label>
+          <Input
             id="endedAt"
             type="datetime-local"
-            className={inputClass}
+            className="mt-1"
             {...register('endedAt')}
           />
           <p className="mt-1 text-xs text-gray-500">
@@ -129,7 +123,7 @@ export function DowntimeForm({
             later with an end time.
           </p>
           {errors.endedAt && (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-sm text-destructive-foreground">
               {errors.endedAt.message}
             </p>
           )}
@@ -137,10 +131,12 @@ export function DowntimeForm({
       </div>
 
       <div>
-        <label htmlFor="reason" className={labelClass}>
-          Reason
-        </label>
-        <select id="reason" className={inputClass} {...register('reason')}>
+        <Label htmlFor="reason">Reason</Label>
+        <select
+          id="reason"
+          className={cn(inputBase, 'mt-1')}
+          {...register('reason')}
+        >
           {DOWNTIME_REASONS.map((reason) => (
             <option key={reason} value={reason}>
               {REASON_LABELS[reason]}
@@ -148,28 +144,30 @@ export function DowntimeForm({
           ))}
         </select>
         {errors.reason && (
-          <p className="mt-1 text-sm text-red-600">{errors.reason.message}</p>
+          <p className="mt-1 text-sm text-destructive-foreground">
+            {errors.reason.message}
+          </p>
         )}
       </div>
 
       <div>
-        <label htmlFor="notes" className={labelClass}>
-          Notes / details
-        </label>
-        <textarea
+        <Label htmlFor="notes">Notes / details</Label>
+        <Textarea
           id="notes"
           rows={4}
           placeholder="What happened? Any details worth recording?"
-          className={inputClass}
+          className="mt-1"
           {...register('notes')}
         />
         {errors.notes && (
-          <p className="mt-1 text-sm text-red-600">{errors.notes.message}</p>
+          <p className="mt-1 text-sm text-destructive-foreground">
+            {errors.notes.message}
+          </p>
         )}
       </div>
 
       {actionError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-lg border border-destructive-foreground/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-foreground">
           {actionError}
         </div>
       )}

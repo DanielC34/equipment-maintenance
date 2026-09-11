@@ -3,9 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Play } from 'lucide-react';
-import {
-  startMaintenanceTask,
-} from '@/server/actions/maintenance';
+import { startMaintenanceTask } from '@/server/actions/maintenance';
 import { Button } from '@/components/ui/button';
 
 export function MaintenanceStartButton({ taskId }: { taskId: string }) {
@@ -31,9 +29,7 @@ export function MaintenanceStartButton({ taskId }: { taskId: string }) {
         <Play aria-hidden />
         {isPending ? 'Starting...' : 'Start maintenance'}
       </Button>
-      {error && (
-        <p className="text-sm text-red-600">{error}</p>
-      )}
+      {error && <p className="text-sm text-destructive-foreground">{error}</p>}
     </div>
   );
 }

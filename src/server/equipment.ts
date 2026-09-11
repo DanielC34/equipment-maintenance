@@ -7,6 +7,7 @@ export const EQUIPMENT_PAGE_SIZE = 20;
 export interface EquipmentFilter {
   q: string;
   status?: EquipmentStatus;
+  criticality?: string;
   page: number;
 }
 
@@ -16,6 +17,9 @@ export async function listEquipment(filter: EquipmentFilter) {
   const where: Prisma.EquipmentWhereInput = { deletedAt: null };
   if (filter.status) {
     where.status = filter.status;
+  }
+  if (filter.criticality) {
+    where.criticality = filter.criticality;
   }
   if (filter.q) {
     where.OR = [

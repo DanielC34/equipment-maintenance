@@ -33,8 +33,8 @@ export function EquipmentArchiveButton({
 
   if (confirming) {
     return (
-      <div className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
-        <span className="flex items-center gap-1.5 text-xs font-medium text-red-700">
+      <div className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-destructive-foreground/30 bg-destructive/10 px-3 py-2">
+        <span className="flex items-center gap-1.5 text-xs font-medium text-destructive-foreground">
           <TriangleAlert aria-hidden className="size-3.5" />
           Archive “{equipmentName}”?
         </span>
@@ -54,7 +54,9 @@ export function EquipmentArchiveButton({
         >
           Cancel
         </Button>
-        {error ? <p className="text-xs text-red-600">{error}</p> : null}
+        {error ? (
+          <p className="text-xs text-destructive-foreground">{error}</p>
+        ) : null}
       </div>
     );
   }

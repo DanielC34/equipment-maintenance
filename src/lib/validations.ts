@@ -41,10 +41,22 @@ export const equipmentFormSchema = z.object({
 
 export type EquipmentFormValues = z.infer<typeof equipmentFormSchema>;
 
+export const EQUIPMENT_CRITICALITIES = [
+  'Low',
+  'Medium',
+  'High',
+  'Critical',
+] as const;
+
 export const equipmentFilterSchema = z.object({
   q: z.string().trim().max(120).catch(''),
   status: z
     .enum(EQUIPMENT_STATUSES)
+    .or(z.literal(''))
+    .transform((value) => (value === '' ? undefined : value))
+    .catch(undefined),
+  criticality: z
+    .enum(EQUIPMENT_CRITICALITIES)
     .or(z.literal(''))
     .transform((value) => (value === '' ? undefined : value))
     .catch(undefined),
@@ -77,10 +89,13 @@ export const maintenanceTaskFormSchema = z.object({
     .refine((value) => !Number.isNaN(new Date(value).getTime()), {
       error: 'Enter a valid date and time.',
     })
-    .refine((value) => {
-      const time = new Date(value).getTime();
-      return Number.isNaN(time) || time >= Date.now();
-    }, { error: 'Scheduled date cannot be in the past.' }),
+    .refine(
+      (value) => {
+        const time = new Date(value).getTime();
+        return Number.isNaN(time) || time >= Date.now();
+      },
+      { error: 'Scheduled date cannot be in the past.' }
+    ),
   priority: z.enum(PRIORITIES, { error: 'Priority is required.' }),
 });
 
@@ -106,11 +121,7 @@ export const maintenanceFilterSchema = z.object({
 export type MaintenanceFilterValues = z.infer<typeof maintenanceFilterSchema>;
 
 export const maintenancePartSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, { error: 'Part name is required.' })
-    .max(120),
+  name: z.string().trim().min(1, { error: 'Part name is required.' }).max(120),
   quantity: z
     .number({ error: 'Quantity must be a number.' })
     .int({ error: 'Quantity must be a whole number.' })
@@ -191,10 +202,12 @@ export const downtimeEventFormSchema = z
       .refine((value) => !Number.isNaN(new Date(value).getTime()), {
         error: 'Enter a valid start date and time.',
       }),
-    endedAt: z.string().refine(
-      (value) => value === '' || !Number.isNaN(new Date(value).getTime()),
-      { error: 'Enter a valid end date and time.' }
-    ),
+    endedAt: z
+      .string()
+      .refine(
+        (value) => value === '' || !Number.isNaN(new Date(value).getTime()),
+        { error: 'Enter a valid end date and time.' }
+      ),
     reason: z.enum(DOWNTIME_REASONS, { error: 'Select a reason.' }),
     notes: z.string().trim().max(2000).optional(),
   })
@@ -342,11 +355,7 @@ export const USER_ROLES = [
 ] as const;
 
 export const userCreateSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, { error: 'User name is required.' })
-    .max(120),
+  name: z.string().trim().min(1, { error: 'User name is required.' }).max(120),
   email: z
     .string()
     .trim()

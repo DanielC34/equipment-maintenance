@@ -13,10 +13,8 @@ import {
   type DowntimeActionResult,
 } from '@/server/actions/downtime';
 import { Button } from '@/components/ui/button';
-
-const inputClass =
-  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
-const labelClass = 'block text-sm font-medium text-gray-700';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export function DowntimeResolveForm({ eventId }: { eventId: string }) {
   const router = useRouter();
@@ -52,24 +50,22 @@ export function DowntimeResolveForm({ eventId }: { eventId: string }) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <div>
-        <label htmlFor="endedAt" className={labelClass}>
-          End date/time
-        </label>
-        <input
+        <Label htmlFor="endedAt">End date/time</Label>
+        <Input
           id="endedAt"
           type="datetime-local"
-          className={inputClass}
+          className="mt-1"
           {...register('endedAt')}
         />
         {errors.endedAt && (
-          <p className="mt-1 text-sm text-red-600">
+          <p className="mt-1 text-sm text-destructive-foreground">
             {errors.endedAt.message}
           </p>
         )}
       </div>
 
       {actionError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-lg border border-destructive-foreground/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-foreground">
           {actionError}
         </div>
       )}

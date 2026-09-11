@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Inbox } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Pagination } from '@/components/ui/pagination';
 import { downtimeFilterSchema } from '@/lib/validations';
 import { PERMISSIONS, requirePermission } from '@/server/rbac';
 import {
@@ -10,9 +12,18 @@ import {
 } from '@/server/downtime';
 import { getEquipmentById } from '@/server/equipment';
 import { PageHeader } from '@/components/page-header';
-import { Button, buttonVariants } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { DowntimeStatusBadge } from '@/components/downtime/downtime-status-badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { DowntimeReasonBadge } from '@/components/downtime/downtime-reason-badge';
 
 export async function generateMetadata({
@@ -28,9 +39,6 @@ export async function generateMetadata({
       : 'Equipment downtime | EMMS',
   };
 }
-
-const inputClass =
-  'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
 
 function formatDateTime(date: Date): string {
   return new Intl.DateTimeFormat('en-US', {
@@ -95,22 +103,17 @@ export default async function EquipmentDowntimePage({
 
       <form
         method="GET"
-        className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-end"
+        className="flex flex-col gap-3 rounded-xl border border-[var(--io-border)] bg-white p-4 sm:flex-row sm:items-end"
       >
         <div className="min-w-0 flex-1">
-          <label
-            htmlFor="q"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Search this downtime
-          </label>
-          <input
+          <Label htmlFor="q">Search this downtime</Label>
+          <Input
             id="q"
             name="q"
             type="search"
             defaultValue={q}
             placeholder="Reporter name or notes"
-            className={`${inputClass} sm:mt-1`}
+            className="mt-1"
           />
         </div>
         <Button type="submit" variant="outline">
@@ -124,138 +127,70 @@ export default async function EquipmentDowntimePage({
       </form>
 
       {items.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center">
-          <Inbox aria-hidden className="size-8 text-gray-400" />
-          <h2 className="text-base font-semibold text-gray-900">
-            {hasFilters
-              ? 'No downtime events match your search'
-              : 'No downtime events recorded for this equipment yet'}
-          </h2>
-          <p className="max-w-md text-sm text-gray-600">
-            {hasFilters
+        <EmptyState
+          icon={Inbox}
+          title={hasFilters ? 'No downtime events match your search' : 'No downtime events recorded for this equipment yet'}
+          description={
+            hasFilters
               ? 'Try a different search term or clear the search.'
-              : 'Downtime events for this asset will appear here with the cause, duration, and reporter.'}
-          </p>
-        </div>
+              : 'Downtime events for this asset will appear here with the cause, duration, and reporter.'
+          }
+        />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr className="text-left text-xs font-medium tracking-wide text-gray-500 uppercase">
-                  <th scope="col" className="px-4 py-3">
-                    Started
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Reason
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Duration
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Reported by
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Status
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Ended
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {items.map((event) => (
-                  <tr key={event.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">
-                      {formatDateTime(event.startedAt)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <DowntimeReasonBadge reason={event.reason} />
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">
-                      {formatDowntimeDuration(
-                        downtimeDurationMinutes(event)
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {event.reportedBy.name}
-                    </td>
-                    <td className="px-4 py-3">
-                      <DowntimeStatusBadge status={event.status} />
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">
-                      {event.endedAt ? formatDateTime(event.endedAt) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/downtime/${event.id}`}
-                        className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
-                      >
-                        View
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-gray-500">
-              Showing {start}–{end} of {total}
-            </p>
-            {totalPages > 1 ? (
-              <div className="flex items-center gap-2">
-                {page > 1 ? (
-                  <Link
-                    href={pageHref(page - 1)}
-                    className={buttonVariants({
-                      variant: 'outline',
-                      size: 'sm',
-                    })}
-                  >
-                    Previous
-                  </Link>
-                ) : (
-                  <span
-                    aria-disabled
-                    className={cn(
-                      buttonVariants({ variant: 'outline', size: 'sm' }),
-                      'pointer-events-none opacity-50'
-                    )}
-                  >
-                    Previous
-                  </span>
-                )}
-                <span className="text-xs text-gray-500">
-                  Page {page} of {totalPages}
-                </span>
-                {page < totalPages ? (
-                  <Link
-                    href={pageHref(page + 1)}
-                    className={buttonVariants({
-                      variant: 'outline',
-                      size: 'sm',
-                    })}
-                  >
-                    Next
-                  </Link>
-                ) : (
-                  <span
-                    aria-disabled
-                    className={cn(
-                      buttonVariants({ variant: 'outline', size: 'sm' }),
-                      'pointer-events-none opacity-50'
-                    )}
-                  >
-                    Next
-                  </span>
-                )}
-              </div>
-            ) : null}
-          </div>
+        <div className="overflow-hidden rounded-xl border border-[var(--io-border)] bg-white">
+          <Table>
+            <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                <TableHead className="io-table-header">Started</TableHead>
+                <TableHead className="io-table-header">Reason</TableHead>
+                <TableHead className="io-table-header">Duration</TableHead>
+                <TableHead className="io-table-header">Reported by</TableHead>
+                <TableHead className="io-table-header">Status</TableHead>
+                <TableHead className="io-table-header">Ended</TableHead>
+                <TableHead className="io-table-header text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((event) => (
+                <TableRow key={event.id}>
+                  <TableCell className="whitespace-nowrap text-gray-700">
+                    {formatDateTime(event.startedAt)}
+                  </TableCell>
+                  <TableCell>
+                    <DowntimeReasonBadge reason={event.reason} />
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-gray-700">
+                    {formatDowntimeDuration(downtimeDurationMinutes(event))}
+                  </TableCell>
+                  <TableCell className="text-gray-700">
+                    {event.reportedBy.name}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={event.status} />
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-gray-700">
+                    {event.endedAt ? formatDateTime(event.endedAt) : '—'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Link
+                      href={`/downtime/${event.id}`}
+                      className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                    >
+                      View
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <Pagination
+            start={start}
+            end={end}
+            total={total}
+            page={page}
+            totalPages={totalPages}
+            pageHref={pageHref}
+          />
         </div>
       )}
     </div>

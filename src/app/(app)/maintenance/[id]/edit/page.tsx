@@ -36,7 +36,7 @@ export default async function EditMaintenancePage({
         title={`Edit ${task.title}`}
         description="Update the scheduling details for this task."
       />
-      <div className="rounded-xl border border-gray-200 bg-white p-6">
+      <div className="max-w-xl rounded-xl border border-[var(--io-border)] bg-white p-6">
         <MaintenanceForm
           equipments={equipments}
           assignableUsers={assignableUsers}

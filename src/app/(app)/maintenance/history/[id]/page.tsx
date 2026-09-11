@@ -5,9 +5,8 @@ import { PERMISSIONS, requirePermission } from '@/server/rbac';
 import { getMaintenanceRecordById } from '@/server/maintenance';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { EquipmentStatusBadge } from '@/components/equipment/equipment-status-badge';
-import { MaintenanceStatusBadge } from '@/components/maintenance/maintenance-status-badge';
-import { MaintenancePriorityBadge } from '@/components/maintenance/maintenance-priority-badge';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { PriorityIndicator } from '@/components/ui/priority-indicator';
 
 export async function generateMetadata({
   params,
@@ -69,7 +68,7 @@ export default async function MaintenanceRecordDetailPage({
         }
       />
 
-      <div className="rounded-xl border border-gray-200 bg-white">
+      <div className="rounded-xl border border-[var(--io-border)] bg-white">
         <dl className="grid gap-x-6 gap-y-4 p-6 sm:grid-cols-2">
           <div>
             <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase">
@@ -102,7 +101,7 @@ export default async function MaintenanceRecordDetailPage({
         </dl>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white">
+      <div className="rounded-xl border border-[var(--io-border)] bg-white">
         <div className="flex items-center gap-2 border-b border-gray-100 px-6 py-4">
           <History aria-hidden className="size-4 text-gray-400" />
           <h2 className="text-base font-semibold text-gray-900">
@@ -127,7 +126,7 @@ export default async function MaintenanceRecordDetailPage({
         </dl>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white">
+      <div className="rounded-xl border border-[var(--io-border)] bg-white">
         <div className="border-b border-gray-100 px-6 py-4">
           <h2 className="text-base font-semibold text-gray-900">Equipment</h2>
         </div>
@@ -139,7 +138,7 @@ export default async function MaintenanceRecordDetailPage({
             <dd className="mt-1 text-sm text-gray-900">
               <Link
                 href={`/equipment/${record.equipment.id}`}
-                className="text-indigo-600 hover:text-indigo-700 hover:underline"
+                className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
               >
                 {record.equipment.name}
               </Link>
@@ -147,7 +146,7 @@ export default async function MaintenanceRecordDetailPage({
           </div>
           <div>
             <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-              Asset tag
+              Asset number
             </dt>
             <dd className="mt-1 text-sm text-gray-900">
               {record.equipment.assetNumber}
@@ -170,14 +169,14 @@ export default async function MaintenanceRecordDetailPage({
               Status
             </dt>
             <dd className="mt-1">
-              <EquipmentStatusBadge status={record.equipment.status} />
+              <StatusBadge status={record.equipment.status} />
             </dd>
           </div>
         </dl>
       </div>
 
       {record.task ? (
-        <div className="rounded-xl border border-gray-200 bg-white">
+        <div className="rounded-xl border border-[var(--io-border)] bg-white">
           <div className="border-b border-gray-100 px-6 py-4">
             <h2 className="text-base font-semibold text-gray-900">Task</h2>
           </div>
@@ -189,7 +188,7 @@ export default async function MaintenanceRecordDetailPage({
               <dd className="mt-1 text-sm text-gray-900">
                 <Link
                   href={`/maintenance/${record.task.id}`}
-                  className="text-indigo-600 hover:text-indigo-700 hover:underline"
+                  className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
                 >
                   {record.task.title}
                 </Link>
@@ -200,7 +199,7 @@ export default async function MaintenanceRecordDetailPage({
                 Status
               </dt>
               <dd className="mt-1">
-                <MaintenanceStatusBadge status={record.task.status} />
+                <StatusBadge status={record.task.status} />
               </dd>
             </div>
             <div>
@@ -208,7 +207,7 @@ export default async function MaintenanceRecordDetailPage({
                 Priority
               </dt>
               <dd className="mt-1">
-                <MaintenancePriorityBadge priority={record.task.priority} />
+                <PriorityIndicator priority={record.task.priority} />
               </dd>
             </div>
             <div>
@@ -233,7 +232,7 @@ export default async function MaintenanceRecordDetailPage({
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-gray-200 bg-white">
+      <div className="rounded-xl border border-[var(--io-border)] bg-white">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <h2 className="text-base font-semibold text-gray-900">Parts used</h2>
           <span className="text-xs text-gray-500">

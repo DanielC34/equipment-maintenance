@@ -14,10 +14,9 @@ import {
   type MaintenanceActionResult,
 } from '@/server/actions/maintenance';
 import { Button } from '@/components/ui/button';
-
-const inputClass =
-  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
-const labelClass = 'block text-sm font-medium text-gray-700';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 export function MaintenanceCompleteForm({ taskId }: { taskId: string }) {
   const router = useRouter();
@@ -64,42 +63,40 @@ export function MaintenanceCompleteForm({ taskId }: { taskId: string }) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
       <div>
-        <label htmlFor="description" className={labelClass}>
-          Work performed
-        </label>
-        <textarea
+        <Label htmlFor="description">Work performed</Label>
+        <Textarea
           id="description"
           rows={4}
           placeholder="Describe the maintenance work that was performed"
-          className={inputClass}
+          className="mt-1"
           {...register('description')}
         />
         {errors.description && (
-          <p className="mt-1 text-sm text-red-600">
+          <p className="mt-1 text-sm text-destructive-foreground">
             {errors.description.message}
           </p>
         )}
       </div>
 
       <div>
-        <label htmlFor="notes" className={labelClass}>
-          Findings / notes
-        </label>
-        <textarea
+        <Label htmlFor="notes">Findings / notes</Label>
+        <Textarea
           id="notes"
           rows={3}
           placeholder="Anything observed during the work, findings, or follow-ups"
-          className={inputClass}
+          className="mt-1"
           {...register('notes')}
         />
         {errors.notes && (
-          <p className="mt-1 text-sm text-red-600">{errors.notes.message}</p>
+          <p className="mt-1 text-sm text-destructive-foreground">
+            {errors.notes.message}
+          </p>
         )}
       </div>
 
       <div>
         <div className="flex items-center justify-between">
-          <label className={labelClass}>Parts used</label>
+          <Label>Parts used</Label>
           <Button
             type="button"
             variant="outline"
@@ -125,32 +122,33 @@ export function MaintenanceCompleteForm({ taskId }: { taskId: string }) {
                 className="grid grid-cols-[1fr_auto_auto] items-start gap-3"
               >
                 <div>
-                  <input
+                  <Input
                     aria-label={`Part name ${index + 1}`}
                     type="text"
                     placeholder="Part name"
-                    className={inputClass}
+                    className="mt-1"
                     {...register(`parts.${index}.name`)}
                   />
                   {errors.parts?.[index]?.name && (
-                    <p className="mt-1 text-sm text-red-600">
+                    <p className="mt-1 text-sm text-destructive-foreground">
                       {errors.parts[index].name.message}
                     </p>
                   )}
                 </div>
                 <div className="w-24">
-                  <input
+                  <Input
                     aria-label={`Part quantity ${index + 1}`}
                     type="number"
                     min={1}
                     placeholder="Qty"
-                    className={inputClass}
+                    className="mt-1"
                     {...register(`parts.${index}.quantity`, {
-                      setValueAs: (value) => (value === '' ? NaN : Number(value)),
+                      setValueAs: (value) =>
+                        value === '' ? NaN : Number(value),
                     })}
                   />
                   {errors.parts?.[index]?.quantity && (
-                    <p className="mt-1 text-sm text-red-600">
+                    <p className="mt-1 text-sm text-destructive-foreground">
                       {errors.parts[index].quantity.message}
                     </p>
                   )}
@@ -172,7 +170,7 @@ export function MaintenanceCompleteForm({ taskId }: { taskId: string }) {
       </div>
 
       {actionError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-lg border border-destructive-foreground/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-foreground">
           {actionError}
         </div>
       )}

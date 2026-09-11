@@ -15,6 +15,10 @@ import {
   type EquipmentActionResult,
 } from '@/server/actions/equipment';
 import { Button } from '@/components/ui/button';
+import { Input, inputBase } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 
 const STATUS_LABELS: Record<EquipmentStatus, string> = {
   OPERATIONAL: 'Operational',
@@ -40,10 +44,6 @@ export interface EquipmentFormDefaults {
   criticality: string | null;
   factoryId: string;
 }
-
-const inputClass =
-  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
-const labelClass = 'block text-sm font-medium text-gray-700';
 
 export function EquipmentForm({
   factories,
@@ -102,46 +102,42 @@ export function EquipmentForm({
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
       <div className="grid gap-5 md:grid-cols-2">
         <div>
-          <label htmlFor="name" className={labelClass}>
-            Equipment name
-          </label>
-          <input
+          <Label htmlFor="name">Equipment name</Label>
+          <Input
             id="name"
             type="text"
             placeholder="e.g. CNC Milling Machine"
-            className={inputClass}
+            className="mt-1"
             {...register('name')}
           />
           {errors.name && (
-            <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
+            <p className="mt-1 text-sm text-destructive-foreground">
+              {errors.name.message}
+            </p>
           )}
         </div>
 
         <div>
-          <label htmlFor="assetNumber" className={labelClass}>
-            Asset number
-          </label>
-          <input
+          <Label htmlFor="assetNumber">Asset number</Label>
+          <Input
             id="assetNumber"
             type="text"
             placeholder="e.g. CNC-001"
-            className={inputClass}
+            className="mt-1"
             {...register('assetNumber')}
           />
           {errors.assetNumber && (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-sm text-destructive-foreground">
               {errors.assetNumber.message}
             </p>
           )}
         </div>
 
         <div>
-          <label htmlFor="factoryId" className={labelClass}>
-            Factory
-          </label>
+          <Label htmlFor="factoryId">Factory</Label>
           <select
             id="factoryId"
-            className={inputClass}
+            className={cn(inputBase, 'mt-1')}
             {...register('factoryId')}
           >
             <option value="">Select a factory</option>
@@ -152,35 +148,35 @@ export function EquipmentForm({
             ))}
           </select>
           {errors.factoryId && (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-sm text-destructive-foreground">
               {errors.factoryId.message}
             </p>
           )}
         </div>
 
         <div>
-          <label htmlFor="location" className={labelClass}>
-            Location
-          </label>
-          <input
+          <Label htmlFor="location">Location</Label>
+          <Input
             id="location"
             type="text"
             placeholder="e.g. Section A"
-            className={inputClass}
+            className="mt-1"
             {...register('location')}
           />
           {errors.location && (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-sm text-destructive-foreground">
               {errors.location.message}
             </p>
           )}
         </div>
 
         <div>
-          <label htmlFor="status" className={labelClass}>
-            Status
-          </label>
-          <select id="status" className={inputClass} {...register('status')}>
+          <Label htmlFor="status">Status</Label>
+          <select
+            id="status"
+            className={cn(inputBase, 'mt-1')}
+            {...register('status')}
+          >
             {EQUIPMENT_STATUSES.map((status) => (
               <option key={status} value={status}>
                 {STATUS_LABELS[status]}
@@ -188,17 +184,17 @@ export function EquipmentForm({
             ))}
           </select>
           {errors.status && (
-            <p className="mt-1 text-sm text-red-600">{errors.status.message}</p>
+            <p className="mt-1 text-sm text-destructive-foreground">
+              {errors.status.message}
+            </p>
           )}
         </div>
 
         <div>
-          <label htmlFor="criticality" className={labelClass}>
-            Criticality
-          </label>
+          <Label htmlFor="criticality">Criticality</Label>
           <select
             id="criticality"
-            className={inputClass}
+            className={cn(inputBase, 'mt-1')}
             {...register('criticality')}
           >
             <option value="">Not rated</option>
@@ -209,7 +205,7 @@ export function EquipmentForm({
             ))}
           </select>
           {errors.criticality && (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-sm text-destructive-foreground">
               {errors.criticality.message}
             </p>
           )}
@@ -217,25 +213,23 @@ export function EquipmentForm({
       </div>
 
       <div>
-        <label htmlFor="description" className={labelClass}>
-          Description
-        </label>
-        <textarea
+        <Label htmlFor="description">Description</Label>
+        <Textarea
           id="description"
           rows={3}
           placeholder="What the equipment is and what it is used for"
-          className={inputClass}
+          className="mt-1"
           {...register('description')}
         />
         {errors.description && (
-          <p className="mt-1 text-sm text-red-600">
+          <p className="mt-1 text-sm text-destructive-foreground">
             {errors.description.message}
           </p>
         )}
       </div>
 
       {actionError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-lg border border-destructive-foreground/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-foreground">
           {actionError}
         </div>
       )}

@@ -18,7 +18,7 @@ export default async function NewDowntimePage() {
         title="Record downtime"
         description="Log when equipment stopped and why — the end time can be added when it is resolved."
       />
-      <div className="rounded-xl border border-gray-200 bg-white p-6">
+      <div className="max-w-xl rounded-xl border border-[var(--io-border)] bg-white p-6">
         <DowntimeForm equipments={equipments} />
       </div>
     </div>

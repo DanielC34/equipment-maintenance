@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Inbox, History } from 'lucide-react';
+import { FilterChip } from '@/components/ui/filter-chip';
 import {
   maintenanceHistoryFilterSchema,
   type MaintenanceHistoryFilterValues,
@@ -11,16 +12,16 @@ import {
   listAssignableUsers,
 } from '@/server/maintenance';
 import { PageHeader } from '@/components/page-header';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
+import { Input, inputBase } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { DataTable } from '@/components/ui/data-table';
+import { PriorityIndicator } from '@/components/ui/priority-indicator';
 import { cn } from '@/lib/utils';
-import { MaintenancePriorityBadge } from '@/components/maintenance/maintenance-priority-badge';
 
 export const metadata = {
   title: 'Maintenance history | EMMS',
 };
-
-const inputClass =
-  'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
 
 function formatCompletedDate(date: Date): string {
   return new Intl.DateTimeFormat('en-US', {
@@ -67,6 +68,74 @@ export default async function MaintenanceHistoryPage({
     return query ? `/maintenance/history?${query}` : '/maintenance/history';
   }
 
+  const columns = [
+    {
+      key: 'completedDate',
+      header: 'Completed',
+      render: (record: (typeof items)[0]) => (
+        <span className="whitespace-nowrap text-gray-700">
+          {formatCompletedDate(record.completedDate)}
+        </span>
+      ),
+    },
+    {
+      key: 'equipment',
+      header: 'Equipment',
+      render: (record: (typeof items)[0]) => (
+        <div>
+          <Link
+            href={`/equipment/${record.equipment.id}`}
+            className="font-medium text-[var(--io-accent)] hover:underline"
+          >
+            {record.equipment.name}
+          </Link>
+          <span className="text-gray-500">
+            {' '}
+            · {record.equipment.assetNumber}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'task',
+      header: 'Task',
+      render: (record: (typeof items)[0]) =>
+        record.task ? (
+          <Link
+            href={`/maintenance/${record.task.id}`}
+            className="font-medium text-[var(--io-accent)] hover:underline"
+          >
+            {record.task.title}
+          </Link>
+        ) : (
+          <span className="text-gray-500">Standalone record</span>
+        ),
+    },
+    { key: 'technician.name', header: 'Technician' },
+    {
+      key: 'description',
+      header: 'Work performed',
+      render: (r: (typeof items)[0]) => (
+        <p className="max-w-xs line-clamp-1 text-gray-700">{r.description}</p>
+      ),
+    },
+    {
+      key: 'task.priority',
+      header: 'Priority',
+      render: (r: (typeof items)[0]) =>
+        r.task ? (
+          <PriorityIndicator priority={r.task.priority} />
+        ) : (
+          <span className="text-gray-400">—</span>
+        ),
+    },
+    {
+      key: 'parts',
+      header: 'Parts',
+      render: (r: (typeof items)[0]) => r._count.partsUsed,
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -84,36 +153,26 @@ export default async function MaintenanceHistoryPage({
 
       <form
         method="GET"
-        className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:flex-wrap sm:items-end"
+        className="flex flex-col gap-3 rounded-xl border border-[var(--io-border)] bg-white p-4 sm:flex-row sm:flex-wrap sm:items-end"
       >
         <div className="min-w-0 flex-1 sm:min-w-48">
-          <label
-            htmlFor="q"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Search
-          </label>
-          <input
+          <Label htmlFor="q">Search</Label>
+          <Input
             id="q"
             name="q"
             type="search"
             defaultValue={q}
-            placeholder="Equipment, asset tag, task, or technician"
-            className={`${inputClass} sm:mt-1`}
+            placeholder="Equipment, asset number, task, or technician"
+            className="mt-1"
           />
         </div>
         <div className="sm:min-w-40">
-          <label
-            htmlFor="equipmentId"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Equipment
-          </label>
+          <Label htmlFor="equipmentId">Equipment</Label>
           <select
             id="equipmentId"
             name="equipmentId"
             defaultValue={equipmentId ?? ''}
-            className={`${inputClass} sm:mt-1`}
+            className={cn(inputBase, 'mt-1')}
           >
             <option value="">All equipment</option>
             {equipments.map((equipment) => (
@@ -124,17 +183,12 @@ export default async function MaintenanceHistoryPage({
           </select>
         </div>
         <div className="sm:min-w-40">
-          <label
-            htmlFor="technicianId"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Technician
-          </label>
+          <Label htmlFor="technicianId">Technician</Label>
           <select
             id="technicianId"
             name="technicianId"
             defaultValue={technicianId ?? ''}
-            className={`${inputClass} sm:mt-1`}
+            className={cn(inputBase, 'mt-1')}
           >
             <option value="">All technicians</option>
             {technicians.map((user) => (
@@ -145,33 +199,23 @@ export default async function MaintenanceHistoryPage({
           </select>
         </div>
         <div>
-          <label
-            htmlFor="from"
-            className="block text-sm font-medium text-gray-700"
-          >
-            From
-          </label>
-          <input
+          <Label htmlFor="from">From</Label>
+          <Input
             id="from"
             name="from"
             type="date"
             defaultValue={from ?? ''}
-            className={`${inputClass} sm:mt-1`}
+            className="mt-1"
           />
         </div>
         <div>
-          <label
-            htmlFor="to"
-            className="block text-sm font-medium text-gray-700"
-          >
-            To
-          </label>
-          <input
+          <Label htmlFor="to">To</Label>
+          <Input
             id="to"
             name="to"
             type="date"
             defaultValue={to ?? ''}
-            className={`${inputClass} sm:mt-1`}
+            className="mt-1"
           />
         </div>
         <div className="flex gap-2">
@@ -186,169 +230,61 @@ export default async function MaintenanceHistoryPage({
         </div>
       </form>
 
-      {items.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center">
-          <Inbox aria-hidden className="size-8 text-gray-400" />
-          <h2 className="text-base font-semibold text-gray-900">
-            {hasFilters
-              ? 'No completed maintenance records match your search'
-              : 'No completed maintenance yet'}
-          </h2>
-          <p className="max-w-md text-sm text-gray-600">
-            {hasFilters
-              ? 'Try a different search term or clear the filters.'
-              : 'Once maintenance work is completed, the record will appear here with the task, technician, and parts used.'}
-          </p>
+      {hasFilters ? (
+        <div className="flex flex-wrap gap-2">
+          {q && <FilterChip label="Search" value={q} removeParam="q" />}
+          {equipmentId && (
+            <FilterChip
+              label="Equipment"
+              value={
+                equipments.find((e) => e.id === equipmentId)?.name ??
+                equipmentId
+              }
+              removeParam="equipmentId"
+            />
+          )}
+          {technicianId && (
+            <FilterChip
+              label="Technician"
+              value={
+                technicians.find((t) => t.id === technicianId)?.name ??
+                technicianId
+              }
+              removeParam="technicianId"
+            />
+          )}
+          {from && <FilterChip label="From" value={from} removeParam="from" />}
+          {to && <FilterChip label="To" value={to} removeParam="to" />}
         </div>
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr className="text-left text-xs font-medium tracking-wide text-gray-500 uppercase">
-                  <th scope="col" className="px-4 py-3">
-                    Completed
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Equipment
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Task
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Technician
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Work performed
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Priority
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Parts
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {items.map((record) => (
-                  <tr key={record.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">
-                      {formatCompletedDate(record.completedDate)}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      <Link
-                        href={`/equipment/${record.equipment.id}`}
-                        className="text-indigo-600 hover:text-indigo-700 hover:underline"
-                      >
-                        {record.equipment.name}
-                      </Link>
-                      <span className="text-gray-500">
-                        {' '}
-                        · {record.equipment.assetNumber}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {record.task ? (
-                        <Link
-                          href={`/maintenance/${record.task.id}`}
-                          className="text-indigo-600 hover:text-indigo-700 hover:underline"
-                        >
-                          {record.task.title}
-                        </Link>
-                      ) : (
-                        <span className="text-gray-500">
-                          Standalone record
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {record.technician.name}
-                    </td>
-                    <td className="max-w-xs px-4 py-3 text-gray-700">
-                      <p className="line-clamp-1">{record.description}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      {record.task ? (
-                        <MaintenancePriorityBadge priority={record.task.priority} />
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {record._count.partsUsed}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/maintenance/history/${record.id}`}
-                        className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
-                      >
-                        View
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-gray-500">
-              Showing {start}–{end} of {total}
-            </p>
-            {totalPages > 1 ? (
-              <div className="flex items-center gap-2">
-                {page > 1 ? (
-                  <Link
-                    href={pageHref(page - 1)}
-                    className={buttonVariants({
-                      variant: 'outline',
-                      size: 'sm',
-                    })}
-                  >
-                    Previous
-                  </Link>
-                ) : (
-                  <span
-                    aria-disabled
-                    className={cn(
-                      buttonVariants({ variant: 'outline', size: 'sm' }),
-                      'pointer-events-none opacity-50'
-                    )}
-                  >
-                    Previous
-                  </span>
-                )}
-                <span className="text-xs text-gray-500">
-                  Page {page} of {totalPages}
-                </span>
-                {page < totalPages ? (
-                  <Link
-                    href={pageHref(page + 1)}
-                    className={buttonVariants({
-                      variant: 'outline',
-                      size: 'sm',
-                    })}
-                  >
-                    Next
-                  </Link>
-                ) : (
-                  <span
-                    aria-disabled
-                    className={cn(
-                      buttonVariants({ variant: 'outline', size: 'sm' }),
-                      'pointer-events-none opacity-50'
-                    )}
-                  >
-                    Next
-                  </span>
-                )}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
+      ) : null}
+
+      <DataTable
+        columns={columns}
+        data={items}
+        keyExtractor={(item) => item.id}
+        rowAction={(item) => ({
+          href: `/maintenance/history/${item.id}`,
+          label: 'View',
+        })}
+        emptyState={{
+          icon: Inbox,
+          title: hasFilters
+            ? 'No completed maintenance records match your search'
+            : 'No completed maintenance yet',
+          description: hasFilters
+            ? 'Try a different search term or clear the filters.'
+            : 'Once maintenance work is completed, the record will appear here with the task, technician, and parts used.',
+        }}
+        pagination={{
+          start,
+          end,
+          total,
+          page,
+          totalPages,
+          pageHref,
+        }}
+        caption="Maintenance history records"
+      />
     </div>
   );
 }

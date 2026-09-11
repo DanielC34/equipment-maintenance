@@ -35,7 +35,7 @@ export default async function EditUserPage({
         }`}
       />
 
-      <div className="max-w-xl rounded-xl border border-gray-200 bg-white p-6">
+      <div className="max-w-xl rounded-xl border border-[var(--io-border)] bg-white p-6">
         <UserEditForm
           userId={user.id}
           currentRole={user.role}
