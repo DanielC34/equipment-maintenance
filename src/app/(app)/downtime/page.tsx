@@ -43,6 +43,20 @@ function formatDateTime(date: Date): string {
   }).format(date);
 }
 
+function formatStartDateTime(date: Date): { date: string; time: string } {
+  return {
+    date: new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    }).format(date),
+    time: new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(date),
+  };
+}
+
 function openEquipmentNames(
   events: { status: DowntimeStatus; equipment: { name: string } }[]
 ): string {
@@ -111,7 +125,10 @@ export default async function DowntimePage({
       {openCount > 0 && !hasFilters ? (
         <div className="flex flex-col gap-1 rounded-xl border border-red-200 bg-red-50/40 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
           <div className="flex items-center gap-2">
-            <TriangleAlert aria-hidden className="size-4 shrink-0 text-red-600" />
+            <TriangleAlert
+              aria-hidden
+              className="size-4 shrink-0 text-red-600"
+            />
             <span className="text-sm font-medium text-red-700">
               {openCount} open {openCount === 1 ? 'event' : 'events'}
             </span>
@@ -205,61 +222,26 @@ export default async function DowntimePage({
 
       {hasFilters ? (
         <div className="flex flex-wrap gap-2">
-          {q && (
-            <FilterChip
-              label="Search"
-              value={q}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('q');
-                window.location.search = params.toString();
-              }}
-            />
-          )}
+          {q && <FilterChip label="Search" value={q} removeParam="q" />}
           {equipmentId && (
             <FilterChip
               label="Equipment"
-              value={equipments.find((e) => e.id === equipmentId)?.name ?? equipmentId}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('equipmentId');
-                window.location.search = params.toString();
-              }}
+              value={
+                equipments.find((e) => e.id === equipmentId)?.name ??
+                equipmentId
+              }
+              removeParam="equipmentId"
             />
           )}
           {status && (
             <FilterChip
               label="Status"
               value={STATUS_LABELS[status as DowntimeStatus]}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('status');
-                window.location.search = params.toString();
-              }}
+              removeParam="status"
             />
           )}
-          {from && (
-            <FilterChip
-              label="From"
-              value={from}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('from');
-                window.location.search = params.toString();
-              }}
-            />
-          )}
-          {to && (
-            <FilterChip
-              label="To"
-              value={to}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('to');
-                window.location.search = params.toString();
-              }}
-            />
-          )}
+          {from && <FilterChip label="From" value={from} removeParam="from" />}
+          {to && <FilterChip label="To" value={to} removeParam="to" />}
         </div>
       ) : null}
 
@@ -268,14 +250,20 @@ export default async function DowntimePage({
           {
             key: 'startedAt',
             header: 'Started',
-            render: (event: typeof items[0]) => (
-              <span className="whitespace-nowrap text-gray-700">{formatDateTime(event.startedAt)}</span>
-            ),
+            render: (event: (typeof items)[0]) => {
+              const started = formatStartDateTime(event.startedAt);
+              return (
+                <span className="text-gray-700">
+                  <span className="block">{started.date}</span>
+                  <span className="block">{started.time}</span>
+                </span>
+              );
+            },
           },
           {
             key: 'equipment',
             header: 'Equipment',
-            render: (event: typeof items[0]) => (
+            render: (event: (typeof items)[0]) => (
               <div>
                 <Link
                   href={`/equipment/${event.equipment.id}`}
@@ -283,41 +271,43 @@ export default async function DowntimePage({
                 >
                   {event.equipment.name}
                 </Link>
-                <span className="text-gray-500"> · {event.equipment.assetNumber}</span>
+                <span className="text-gray-500">
+                  {' '}
+                  · {event.equipment.assetNumber}
+                </span>
               </div>
             ),
           },
           {
             key: 'reason',
             header: 'Reason',
-            render: (event: typeof items[0]) => <DowntimeReasonBadge reason={event.reason} />,
+            render: (event: (typeof items)[0]) => (
+              <DowntimeReasonBadge reason={event.reason} />
+            ),
           },
           {
             key: 'duration',
             header: 'Duration',
-            render: (event: typeof items[0]) => (
+            render: (event: (typeof items)[0]) =>
               event.status === 'OPEN' ? (
                 <span className="font-medium text-red-600">Ongoing</span>
               ) : (
-                <span className="text-gray-700">{formatDowntimeDuration(downtimeDurationMinutes(event))}</span>
-              )
-            ),
+                <span className="text-gray-700">
+                  {formatDowntimeDuration(downtimeDurationMinutes(event))}
+                </span>
+              ),
           },
           { key: 'reportedBy.name', header: 'Reported by' },
-          { key: 'status', header: 'Status', render: (e: typeof items[0]) => <StatusBadge status={e.status} /> },
-          { key: 'endedAt', header: 'Ended', render: (e: typeof items[0]) => (e.endedAt ? formatDateTime(e.endedAt) : '—') },
           {
-            key: 'actions',
-            header: 'Actions',
-            className: 'text-right',
-            render: (event: typeof items[0]) => (
-              <Link
-                href={`/downtime/${event.id}`}
-                className="text-sm font-medium text-[var(--io-accent)] hover:underline"
-              >
-                View
-              </Link>
-            ),
+            key: 'status',
+            header: 'Status',
+            render: (e: (typeof items)[0]) => <StatusBadge status={e.status} />,
+          },
+          {
+            key: 'endedAt',
+            header: 'Ended',
+            render: (e: (typeof items)[0]) =>
+              e.endedAt ? formatDateTime(e.endedAt) : '—',
           },
         ]}
         data={items}
@@ -328,13 +318,17 @@ export default async function DowntimePage({
         })}
         emptyState={{
           icon: Inbox,
-          title: hasFilters ? 'No downtime events match your filters' : 'No downtime events recorded yet',
+          title: hasFilters
+            ? 'No downtime events match your filters'
+            : 'No downtime events recorded yet',
           description: hasFilters
             ? 'Try a different search term or clear the filters.'
             : canRecord
               ? 'Record the first downtime event to start tracking production loss.'
               : 'Downtime events recorded by an operator or administrator will appear here.',
-          action: canRecord ? { href: '/downtime/new', label: 'Record downtime' } : undefined,
+          action: canRecord
+            ? { href: '/downtime/new', label: 'Record downtime' }
+            : undefined,
         }}
         pagination={{
           start,

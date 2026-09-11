@@ -84,7 +84,7 @@ export default async function MaintenancePage({
     {
       key: 'title',
       header: 'Task',
-      render: (task: typeof items[0]) => (
+      render: (task: (typeof items)[0]) => (
         <div>
           <Link
             href={`/maintenance/${task.id}`}
@@ -103,7 +103,7 @@ export default async function MaintenancePage({
     {
       key: 'equipment',
       header: 'Equipment',
-      render: (task: typeof items[0]) => (
+      render: (task: (typeof items)[0]) => (
         <div>
           <Link
             href={`/equipment/${task.equipment.id}`}
@@ -113,15 +113,39 @@ export default async function MaintenancePage({
           </Link>
           <span className="text-gray-500"> · {task.equipment.assetNumber}</span>
           {task.equipment.location && (
-            <p className="mt-0.5 text-xs text-gray-500">{task.equipment.location}</p>
+            <p className="mt-0.5 text-xs text-gray-500">
+              {task.equipment.location}
+            </p>
           )}
         </div>
       ),
     },
-    { key: 'assignedUser.name', header: 'Assigned to', render: (t: typeof items[0]) => t.assignedUser?.name ?? '—' },
-    { key: 'scheduledDate', header: 'Scheduled', render: (t: typeof items[0]) => <span className="whitespace-nowrap text-gray-700">{formatScheduledDate(t.scheduledDate)}</span> },
-    { key: 'priority', header: 'Priority', render: (t: typeof items[0]) => <PriorityIndicator priority={t.priority} /> },
-    { key: 'status', header: 'Status', render: (t: typeof items[0]) => <StatusBadge status={t.status} /> },
+    {
+      key: 'assignedUser.name',
+      header: 'Assigned to',
+      render: (t: (typeof items)[0]) => t.assignedUser?.name ?? '—',
+    },
+    {
+      key: 'scheduledDate',
+      header: 'Scheduled',
+      render: (t: (typeof items)[0]) => (
+        <span className="whitespace-nowrap text-gray-700">
+          {formatScheduledDate(t.scheduledDate)}
+        </span>
+      ),
+    },
+    {
+      key: 'priority',
+      header: 'Priority',
+      render: (t: (typeof items)[0]) => (
+        <PriorityIndicator priority={t.priority} />
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (t: (typeof items)[0]) => <StatusBadge status={t.status} />,
+    },
   ];
 
   return (
@@ -211,37 +235,19 @@ export default async function MaintenancePage({
 
       {hasFilters ? (
         <div className="flex flex-wrap gap-2">
-          {q && (
-            <FilterChip
-              label="Search"
-              value={q}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('q');
-                window.location.search = params.toString();
-              }}
-            />
-          )}
+          {q && <FilterChip label="Search" value={q} removeParam="q" />}
           {status && (
             <FilterChip
               label="Status"
               value={STATUS_LABELS[status as MaintenanceStatus]}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('status');
-                window.location.search = params.toString();
-              }}
+              removeParam="status"
             />
           )}
           {priority && (
             <FilterChip
               label="Priority"
               value={PRIORITY_LABELS[priority as Priority]}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('priority');
-                window.location.search = params.toString();
-              }}
+              removeParam="priority"
             />
           )}
         </div>
@@ -257,7 +263,9 @@ export default async function MaintenancePage({
         })}
         emptyState={{
           icon: Inbox,
-          title: hasFilters ? 'No maintenance tasks match your search' : 'No maintenance tasks scheduled yet',
+          title: hasFilters
+            ? 'No maintenance tasks match your search'
+            : 'No maintenance tasks scheduled yet',
           description: hasFilters
             ? 'Try a different search term, status, or priority, or clear the filters.'
             : 'Maintenance tasks scheduled by an administrator or supervisor will appear here.',

@@ -66,7 +66,7 @@ export default async function EquipmentPage({
     {
       key: 'name',
       header: 'Equipment',
-      render: (equipment: typeof items[0]) => (
+      render: (equipment: (typeof items)[0]) => (
         <div>
           <Link
             href={`/equipment/${equipment.id}`}
@@ -82,8 +82,16 @@ export default async function EquipmentPage({
     },
     { key: 'assetNumber', header: 'Asset number' },
     { key: 'factory.name', header: 'Factory' },
-    { key: 'criticality', header: 'Criticality', render: (e: typeof items[0]) => e.criticality ?? '—' },
-    { key: 'status', header: 'Status', render: (e: typeof items[0]) => <StatusBadge status={e.status} /> },
+    {
+      key: 'criticality',
+      header: 'Criticality',
+      render: (e: (typeof items)[0]) => e.criticality ?? '—',
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (e: (typeof items)[0]) => <StatusBadge status={e.status} />,
+    },
   ];
 
   return (
@@ -165,37 +173,19 @@ export default async function EquipmentPage({
 
       {hasFilters ? (
         <div className="flex flex-wrap gap-2">
-          {q && (
-            <FilterChip
-              label="Search"
-              value={q}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('q');
-                window.location.search = params.toString();
-              }}
-            />
-          )}
+          {q && <FilterChip label="Search" value={q} removeParam="q" />}
           {status && (
             <FilterChip
               label="Status"
               value={STATUS_LABELS[status as EquipmentStatus]}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('status');
-                window.location.search = params.toString();
-              }}
+              removeParam="status"
             />
           )}
           {criticality && (
             <FilterChip
               label="Criticality"
               value={criticality}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('criticality');
-                window.location.search = params.toString();
-              }}
+              removeParam="criticality"
             />
           )}
         </div>
@@ -211,13 +201,17 @@ export default async function EquipmentPage({
         })}
         emptyState={{
           icon: Inbox,
-          title: hasFilters ? 'No equipment matches your search' : 'No equipment registered yet',
+          title: hasFilters
+            ? 'No equipment matches your search'
+            : 'No equipment registered yet',
           description: hasFilters
             ? 'Try a different search term, status, or criticality, or clear the filters.'
             : canCreate
               ? 'Register the first asset to start building the asset registry.'
               : 'Assets registered by an administrator or supervisor will appear here.',
-          action: canCreate ? { href: '/equipment/new', label: 'Add equipment' } : undefined,
+          action: canCreate
+            ? { href: '/equipment/new', label: 'Add equipment' }
+            : undefined,
         }}
         pagination={{
           start,

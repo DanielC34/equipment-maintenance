@@ -132,37 +132,19 @@ export default async function UsersPage({
 
       {hasFilters ? (
         <div className="flex flex-wrap gap-2">
-          {q && (
-            <FilterChip
-              label="Search"
-              value={q}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('q');
-                window.location.search = params.toString();
-              }}
-            />
-          )}
+          {q && <FilterChip label="Search" value={q} removeParam="q" />}
           {role && (
             <FilterChip
               label="Role"
               value={ROLE_LABELS[role]}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('role');
-                window.location.search = params.toString();
-              }}
+              removeParam="role"
             />
           )}
           {active !== undefined && (
             <FilterChip
               label="Status"
               value={active ? 'Active' : 'Inactive'}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('active');
-                window.location.search = params.toString();
-              }}
+              removeParam="active"
             />
           )}
         </div>
@@ -173,7 +155,7 @@ export default async function UsersPage({
           {
             key: 'name',
             header: 'Name',
-            render: (user: typeof items[0]) => (
+            render: (user: (typeof items)[0]) => (
               <Link
                 href={`/admin/users/${user.id}`}
                 className="font-medium text-[var(--io-accent)] hover:underline"
@@ -183,9 +165,27 @@ export default async function UsersPage({
             ),
           },
           { key: 'email', header: 'Email' },
-          { key: 'role', header: 'Role', render: (u: typeof items[0]) => <UserRoleBadge role={u.role} /> },
-          { key: 'active', header: 'Status', render: (u: typeof items[0]) => <StatusBadge status={u.active ? 'active' : 'inactive'} /> },
-          { key: 'createdAt', header: 'Created', render: (u: typeof items[0]) => <span className="whitespace-nowrap text-gray-700">{formatDate(u.createdAt)}</span> },
+          {
+            key: 'role',
+            header: 'Role',
+            render: (u: (typeof items)[0]) => <UserRoleBadge role={u.role} />,
+          },
+          {
+            key: 'active',
+            header: 'Status',
+            render: (u: (typeof items)[0]) => (
+              <StatusBadge status={u.active ? 'active' : 'inactive'} />
+            ),
+          },
+          {
+            key: 'createdAt',
+            header: 'Created',
+            render: (u: (typeof items)[0]) => (
+              <span className="whitespace-nowrap text-gray-700">
+                {formatDate(u.createdAt)}
+              </span>
+            ),
+          },
         ]}
         data={items}
         keyExtractor={(item) => item.id}

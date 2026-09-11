@@ -1,9 +1,6 @@
 import Link from 'next/link';
 import { Inbox } from 'lucide-react';
-import {
-  reportFilterSchema,
-  type ReportFilterValues,
-} from '@/lib/validations';
+import { reportFilterSchema, type ReportFilterValues } from '@/lib/validations';
 import { PERMISSIONS, requirePermission } from '@/server/rbac';
 import { getMaintenanceReport, getDowntimeReport } from '@/server/reports';
 import { formatDowntimeDuration } from '@/server/downtime';
@@ -52,7 +49,10 @@ export default async function ReportsPage({
         title="Reports"
         description="Summaries of completed maintenance work and downtime for the selected period."
         actions={
-          <form method="GET" className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-3 w-full sm:w-auto">
+          <form
+            method="GET"
+            className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-3 w-full sm:w-auto"
+          >
             <div className="min-w-0 flex-1 sm:min-w-40">
               <Label htmlFor="from">From</Label>
               <Input
@@ -89,28 +89,8 @@ export default async function ReportsPage({
 
       {hasFilters && (
         <div className="flex flex-wrap gap-2">
-          {from && (
-            <FilterChip
-              label="From"
-              value={from}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('from');
-                window.location.search = params.toString();
-              }}
-            />
-          )}
-          {to && (
-            <FilterChip
-              label="To"
-              value={to}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('to');
-                window.location.search = params.toString();
-              }}
-            />
-          )}
+          {from && <FilterChip label="From" value={from} removeParam="from" />}
+          {to && <FilterChip label="To" value={to} removeParam="to" />}
         </div>
       )}
 
@@ -118,12 +98,14 @@ export default async function ReportsPage({
         {/* MAINTENANCE SUMMARY */}
         <section className="rounded-xl border border-[var(--io-border)] bg-white">
           <div className="border-b border-[var(--io-border)] px-5 py-4">
-            <h2 className="text-base font-semibold text-gray-900">Completed maintenance</h2>
+            <h2 className="text-base font-semibold text-gray-900">
+              Completed maintenance
+            </h2>
             <p className="mt-0.5 text-sm text-gray-500">
               {maintenance.totalRecords === 0
                 ? `No completed work${hasFilters ? ' in this period' : ' yet'}`
                 : `${maintenance.totalRecords} ${maintenance.totalRecords === 1 ? 'record' : 'records'} of completed maintenance${hasFilters ? ' in this period' : ''}`}
-              </p>
+            </p>
             <p className="mt-0.5 text-xs text-gray-400">Period: {period}</p>
           </div>
           <div className="px-5 py-5">
@@ -134,20 +116,30 @@ export default async function ReportsPage({
                   {hasFilters
                     ? 'No completed maintenance matches the selected date range.'
                     : 'No completed maintenance recorded yet.'}
-              </p>
+                </p>
               </div>
             ) : (
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <ReportMetricTile label="Total records" value={maintenance.totalRecords} />
-                  <ReportMetricTile label="Parts used" value={maintenance.totalParts} />
+                  <ReportMetricTile
+                    label="Total records"
+                    value={maintenance.totalRecords}
+                  />
+                  <ReportMetricTile
+                    label="Parts used"
+                    value={maintenance.totalParts}
+                  />
                 </div>
                 <div className="mt-6 space-y-6">
                   <MiniRecordTable
                     caption="By technician"
                     columns={[
                       { key: 'name', header: 'Technician' },
-                      { key: 'count', header: 'Records', className: 'text-right' },
+                      {
+                        key: 'count',
+                        header: 'Records',
+                        className: 'text-right',
+                      },
                     ]}
                     data={maintenance.byTechnician}
                     keyExtractor={(r) => r.name}
@@ -159,7 +151,11 @@ export default async function ReportsPage({
                     caption="By equipment"
                     columns={[
                       { key: 'name', header: 'Equipment' },
-                      { key: 'count', header: 'Records', className: 'text-right' },
+                      {
+                        key: 'count',
+                        header: 'Records',
+                        className: 'text-right',
+                      },
                     ]}
                     data={maintenance.byEquipment}
                     keyExtractor={(r) => r.name}
@@ -176,12 +172,14 @@ export default async function ReportsPage({
         {/* DOWNTIME INCIDENTS */}
         <section className="rounded-xl border border-[var(--io-border)] bg-white">
           <div className="border-b border-[var(--io-border)] px-5 py-4">
-            <h2 className="text-base font-semibold text-gray-900">Downtime incidents</h2>
+            <h2 className="text-base font-semibold text-gray-900">
+              Downtime incidents
+            </h2>
             <p className="mt-0.5 text-sm text-gray-500">
               {downtime.totalEvents === 0
                 ? `No downtime events${hasFilters ? ' in this period' : ' yet'}`
                 : `${downtime.totalEvents} ${downtime.totalEvents === 1 ? 'event' : 'events'} — ${formatDowntimeDuration(downtime.totalMinutes)} total`}
-              </p>
+            </p>
             <p className="mt-0.5 text-xs text-gray-400">Period: {period}</p>
           </div>
           <div className="px-5 py-5">
@@ -197,9 +195,19 @@ export default async function ReportsPage({
             ) : (
               <>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <ReportMetricTile label="Total events" value={downtime.totalEvents} />
-                  <ReportMetricTile label="Resolved" value={downtime.resolved} />
-                  <ReportMetricTile label="Open" value={downtime.open} flagged={downtime.open > 0} />
+                  <ReportMetricTile
+                    label="Total events"
+                    value={downtime.totalEvents}
+                  />
+                  <ReportMetricTile
+                    label="Resolved"
+                    value={downtime.resolved}
+                  />
+                  <ReportMetricTile
+                    label="Open"
+                    value={downtime.open}
+                    flagged={downtime.open > 0}
+                  />
                   <ReportMetricTile
                     label="Total downtime"
                     value={formatDowntimeDuration(downtime.totalMinutes)}
@@ -208,7 +216,11 @@ export default async function ReportsPage({
                     label="Mean time to repair"
                     value={
                       downtime.resolved > 0
-                        ? formatDowntimeDuration(Math.round(downtime.totalMinutes / downtime.resolved))
+                        ? formatDowntimeDuration(
+                            Math.round(
+                              downtime.totalMinutes / downtime.resolved
+                            )
+                          )
                         : '—'
                     }
                   />
@@ -220,16 +232,23 @@ export default async function ReportsPage({
                       {
                         key: 'reason',
                         header: 'Reason',
-                        render: (row: { reason: DowntimeReason; count: number; minutes: number }) => (
-                          <DowntimeReasonBadge reason={row.reason} />
-                        ),
+                        render: (row: {
+                          reason: DowntimeReason;
+                          count: number;
+                          minutes: number;
+                        }) => <DowntimeReasonBadge reason={row.reason} />,
                       },
-                      { key: 'count', header: 'Events', className: 'text-right' },
+                      {
+                        key: 'count',
+                        header: 'Events',
+                        className: 'text-right',
+                      },
                       {
                         key: 'duration',
                         header: 'Duration',
                         className: 'text-right',
-                        render: (row: { minutes: number }) => formatDowntimeDuration(row.minutes),
+                        render: (row: { minutes: number }) =>
+                          formatDowntimeDuration(row.minutes),
                       },
                     ]}
                     data={downtime.byReason}

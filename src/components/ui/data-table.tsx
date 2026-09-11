@@ -1,7 +1,17 @@
 import { cn } from '@/lib/utils';
-import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from '@/components/ui/table';
 import { Pagination, PaginationProps } from '@/components/ui/pagination';
-import { TableRowAction, TableRowActionProps } from '@/components/ui/table-row-action';
+import {
+  TableRowAction,
+  TableRowActionProps,
+} from '@/components/ui/table-row-action';
 import { EmptyState, EmptyStateProps } from '@/components/ui/empty-state';
 import { LoadingState, LoadingStateProps } from '@/components/ui/loading-state';
 import { ErrorState, ErrorStateProps } from '@/components/ui/error-state';
@@ -66,36 +76,58 @@ export function DataTable<T>({
   }
 
   if (error) {
-    return <ErrorState message={error.message} onRetry={onRetry} {...errorState} />;
+    return (
+      <ErrorState message={error.message} onRetry={onRetry} {...errorState} />
+    );
   }
 
   if (data.length === 0) {
-    return <EmptyState {...emptyState} icon={emptyState?.icon} title={emptyState?.title ?? 'No data'} description={emptyState?.description ?? 'No data available'} action={emptyState?.action} />;
+    return (
+      <EmptyState
+        {...emptyState}
+        icon={emptyState?.icon}
+        title={emptyState?.title ?? 'No data'}
+        description={emptyState?.description ?? 'No data available'}
+        action={emptyState?.action}
+      />
+    );
   }
 
   return (
     <div className={cn('space-y-4', className)}>
       <div className="overflow-hidden rounded-xl border border-[var(--io-border)] bg-white">
-        {caption && (
-          <caption className="sr-only">{caption}</caption>
-        )}
         <Table>
+          {caption && <caption className="sr-only">{caption}</caption>}
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               {columns.map((column) => (
-                <TableHead key={column.key} className={cn('io-table-header', column.className)}>
+                <TableHead
+                  key={column.key}
+                  className={cn('io-table-header', column.className)}
+                >
                   {column.header}
                 </TableHead>
               ))}
-              {rowAction && <TableHead className="text-right io-table-header">Actions</TableHead>}
+              {rowAction && (
+                <TableHead className="text-center io-table-header">
+                  Actions
+                </TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.map((item, index) => (
               <TableRow key={keyExtractor(item)}>
                 {columns.map((column) => (
-                  <TableCell key={column.key} className={cn('io-table-body', column.className)}>
-                    {column.render ? column.render(item, index) : (item as Record<string, unknown>)[column.key] as React.ReactNode}
+                  <TableCell
+                    key={column.key}
+                    className={cn('io-table-body', column.className)}
+                  >
+                    {column.render
+                      ? column.render(item, index)
+                      : ((item as Record<string, unknown>)[
+                          column.key
+                        ] as React.ReactNode)}
                   </TableCell>
                 ))}
                 {rowAction && (

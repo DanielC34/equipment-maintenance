@@ -72,14 +72,16 @@ export default async function MaintenanceHistoryPage({
     {
       key: 'completedDate',
       header: 'Completed',
-      render: (record: typeof items[0]) => (
-        <span className="whitespace-nowrap text-gray-700">{formatCompletedDate(record.completedDate)}</span>
+      render: (record: (typeof items)[0]) => (
+        <span className="whitespace-nowrap text-gray-700">
+          {formatCompletedDate(record.completedDate)}
+        </span>
       ),
     },
     {
       key: 'equipment',
       header: 'Equipment',
-      render: (record: typeof items[0]) => (
+      render: (record: (typeof items)[0]) => (
         <div>
           <Link
             href={`/equipment/${record.equipment.id}`}
@@ -87,14 +89,17 @@ export default async function MaintenanceHistoryPage({
           >
             {record.equipment.name}
           </Link>
-          <span className="text-gray-500"> · {record.equipment.assetNumber}</span>
+          <span className="text-gray-500">
+            {' '}
+            · {record.equipment.assetNumber}
+          </span>
         </div>
       ),
     },
     {
       key: 'task',
       header: 'Task',
-      render: (record: typeof items[0]) => (
+      render: (record: (typeof items)[0]) =>
         record.task ? (
           <Link
             href={`/maintenance/${record.task.id}`}
@@ -104,13 +109,31 @@ export default async function MaintenanceHistoryPage({
           </Link>
         ) : (
           <span className="text-gray-500">Standalone record</span>
-        )
-      ),
+        ),
     },
     { key: 'technician.name', header: 'Technician' },
-    { key: 'description', header: 'Work performed', render: (r: typeof items[0]) => <p className="max-w-xs line-clamp-1 text-gray-700">{r.description}</p> },
-    { key: 'task.priority', header: 'Priority', render: (r: typeof items[0]) => r.task ? <PriorityIndicator priority={r.task.priority} /> : <span className="text-gray-400">—</span> },
-    { key: 'parts', header: 'Parts', render: (r: typeof items[0]) => r._count.partsUsed },
+    {
+      key: 'description',
+      header: 'Work performed',
+      render: (r: (typeof items)[0]) => (
+        <p className="max-w-xs line-clamp-1 text-gray-700">{r.description}</p>
+      ),
+    },
+    {
+      key: 'task.priority',
+      header: 'Priority',
+      render: (r: (typeof items)[0]) =>
+        r.task ? (
+          <PriorityIndicator priority={r.task.priority} />
+        ) : (
+          <span className="text-gray-400">—</span>
+        ),
+    },
+    {
+      key: 'parts',
+      header: 'Parts',
+      render: (r: (typeof items)[0]) => r._count.partsUsed,
+    },
   ];
 
   return (
@@ -209,61 +232,29 @@ export default async function MaintenanceHistoryPage({
 
       {hasFilters ? (
         <div className="flex flex-wrap gap-2">
-          {q && (
-            <FilterChip
-              label="Search"
-              value={q}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('q');
-                window.location.search = params.toString();
-              }}
-            />
-          )}
+          {q && <FilterChip label="Search" value={q} removeParam="q" />}
           {equipmentId && (
             <FilterChip
               label="Equipment"
-              value={equipments.find(e => e.id === equipmentId)?.name ?? equipmentId}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('equipmentId');
-                window.location.search = params.toString();
-              }}
+              value={
+                equipments.find((e) => e.id === equipmentId)?.name ??
+                equipmentId
+              }
+              removeParam="equipmentId"
             />
           )}
           {technicianId && (
             <FilterChip
               label="Technician"
-              value={technicians.find(t => t.id === technicianId)?.name ?? technicianId}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('technicianId');
-                window.location.search = params.toString();
-              }}
+              value={
+                technicians.find((t) => t.id === technicianId)?.name ??
+                technicianId
+              }
+              removeParam="technicianId"
             />
           )}
-          {from && (
-            <FilterChip
-              label="From"
-              value={from}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('from');
-                window.location.search = params.toString();
-              }}
-            />
-          )}
-          {to && (
-            <FilterChip
-              label="To"
-              value={to}
-              onRemove={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('to');
-                window.location.search = params.toString();
-              }}
-            />
-          )}
+          {from && <FilterChip label="From" value={from} removeParam="from" />}
+          {to && <FilterChip label="To" value={to} removeParam="to" />}
         </div>
       ) : null}
 
@@ -277,7 +268,9 @@ export default async function MaintenanceHistoryPage({
         })}
         emptyState={{
           icon: Inbox,
-          title: hasFilters ? 'No completed maintenance records match your search' : 'No completed maintenance yet',
+          title: hasFilters
+            ? 'No completed maintenance records match your search'
+            : 'No completed maintenance yet',
           description: hasFilters
             ? 'Try a different search term or clear the filters.'
             : 'Once maintenance work is completed, the record will appear here with the task, technician, and parts used.',

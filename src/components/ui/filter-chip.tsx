@@ -1,3 +1,5 @@
+'use client';
+
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -6,8 +8,8 @@ interface FilterChipProps {
   label: string;
   /** Currently active value shown after the colon (e.g. "Operational"). */
   value: string;
-  /** Called when the user clicks the × dismiss button. */
-  onRemove: () => void;
+  /** Query-string parameter removed when the dismiss button is clicked. */
+  removeParam: string;
   className?: string;
 }
 
@@ -18,14 +20,25 @@ interface FilterChipProps {
  * Visual: compact neutral rounded-rectangle with a dismiss icon.
  * Used beneath the FilterBar when one or more filters are active.
  */
-export function FilterChip({ label, value, onRemove, className }: FilterChipProps) {
+export function FilterChip({
+  label,
+  value,
+  removeParam,
+  className,
+}: FilterChipProps) {
+  function handleRemove() {
+    const params = new URLSearchParams(window.location.search);
+    params.delete(removeParam);
+    window.location.search = params.toString();
+  }
+
   return (
     <span
       className={cn(
         'inline-flex items-center gap-1 rounded-[5px]',
         'bg-[var(--io-status-inactive-bg)] text-[var(--io-status-inactive-text)]',
         'px-2.5 py-1 text-xs font-medium',
-        className,
+        className
       )}
     >
       <span className="text-muted-foreground">{label}:</span>
@@ -33,7 +46,7 @@ export function FilterChip({ label, value, onRemove, className }: FilterChipProp
       <button
         type="button"
         aria-label={`Remove ${label} filter`}
-        onClick={onRemove}
+        onClick={handleRemove}
         className="ml-0.5 rounded-sm opacity-60 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <X className="size-3" aria-hidden />

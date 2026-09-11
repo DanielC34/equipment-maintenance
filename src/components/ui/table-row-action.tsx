@@ -32,8 +32,8 @@ export function TableRowAction({
   overflowContent,
 }: TableRowActionProps) {
   return (
-    <td className={cn('text-right', className)}>
-      <div className="flex items-center justify-end gap-2">
+    <td className={cn('text-center', className)}>
+      <div className="flex items-center justify-center gap-2">
         <Link
           href={href}
           className="text-sm font-medium text-[var(--io-accent)] hover:underline transition-colors"
