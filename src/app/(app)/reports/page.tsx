@@ -7,7 +7,7 @@ import { formatDowntimeDuration } from '@/server/downtime';
 import type { DowntimeReason } from '@prisma/client';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Label } from '@/components/ui/label';
 import { FilterChip } from '@/components/ui/filter-chip';
 import { MiniRecordTable } from '@/components/dashboard/mini-record-table';
@@ -55,20 +55,18 @@ export default async function ReportsPage({
           >
             <div className="min-w-0 flex-1 sm:min-w-40">
               <Label htmlFor="from">From</Label>
-              <Input
+              <DatePicker
                 id="from"
                 name="from"
-                type="date"
                 defaultValue={from ?? ''}
                 className="mt-1"
               />
             </div>
             <div className="min-w-0 flex-1 sm:min-w-40">
               <Label htmlFor="to">To</Label>
-              <Input
+              <DatePicker
                 id="to"
                 name="to"
-                type="date"
                 defaultValue={to ?? ''}
                 className="mt-1"
               />

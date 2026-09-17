@@ -53,13 +53,25 @@ interface SelectProps extends React.ComponentProps<'select'> {
  *   status color from the §4.2 lookup table.
  * - Focus/error/disabled follow the existing app form-control system.
  */
-function Select({ className, statusColored, value, defaultValue, ...props }: SelectProps) {
+function Select({
+  className,
+  statusColored,
+  value,
+  defaultValue,
+  ...props
+}: SelectProps) {
   // Determine the currently selected value for colour resolution.
   // We accept both controlled (`value`) and uncontrolled (`defaultValue`).
   const resolvedValue =
-    typeof value === 'string' ? value : typeof defaultValue === 'string' ? defaultValue : undefined;
+    typeof value === 'string'
+      ? value
+      : typeof defaultValue === 'string'
+        ? defaultValue
+        : undefined;
 
-  const statusClass = statusColored ? resolveStatusTextColor(resolvedValue) : '';
+  const statusClass = statusColored
+    ? resolveStatusTextColor(resolvedValue)
+    : '';
 
   return (
     <div className="relative w-full">
@@ -77,12 +89,15 @@ function Select({ className, statusColored, value, defaultValue, ...props }: Sel
           'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
           'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
           // dark
-          'dark:bg-input/30',
+          'dark:bg-input/30 dark:[color-scheme:dark]',
+          'dark:[&>option]:bg-popover dark:[&>option]:text-popover-foreground',
+          'dark:[&>option:hover]:bg-accent dark:[&>option:checked]:bg-accent',
+          'dark:[&>option:hover]:text-accent-foreground dark:[&>option:checked]:text-accent-foreground',
           // placeholder / empty state gets muted colour
           'text-foreground',
           // status colour override
           statusClass,
-          className,
+          className
         )}
         {...props}
       />

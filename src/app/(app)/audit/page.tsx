@@ -7,14 +7,11 @@ import {
   type AuditFilterValues,
 } from '@/lib/validations';
 import { PERMISSIONS, requirePermission } from '@/server/rbac';
-import {
-  listAuditLog,
-  listAuditActors,
-  describeAudit,
-} from '@/server/audit';
+import { listAuditLog, listAuditActors, describeAudit } from '@/server/audit';
 import { PageHeader } from '@/components/page-header';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input, inputBase } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Label } from '@/components/ui/label';
 import {
   Table,
@@ -25,7 +22,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import { AuditActionBadge, AuditEntityBadge } from '@/components/audit/audit-badges';
+import {
+  AuditActionBadge,
+  AuditEntityBadge,
+} from '@/components/audit/audit-badges';
 
 export const metadata = {
   title: 'Audit Log | EMMS',
@@ -59,10 +59,7 @@ function formatDateTime(date: Date): string {
   }).format(date);
 }
 
-function entityHref(
-  entityType: string,
-  entityId: string
-): string | null {
+function entityHref(entityType: string, entityId: string): string | null {
   switch (entityType) {
     case 'EQUIPMENT':
       return `/equipment/${entityId}`;
@@ -96,7 +93,9 @@ export default async function AuditPage({
   ]);
 
   const { items, total, pageSize, totalPages } = audit;
-  const hasFilters = Boolean(q || actorId || action || entityType || from || to);
+  const hasFilters = Boolean(
+    q || actorId || action || entityType || from || to
+  );
   const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, total);
 
@@ -185,20 +184,18 @@ export default async function AuditPage({
         </div>
         <div>
           <Label htmlFor="from">From</Label>
-          <Input
+          <DatePicker
             id="from"
             name="from"
-            type="date"
             defaultValue={from ?? ''}
             className="mt-1"
           />
         </div>
         <div>
           <Label htmlFor="to">To</Label>
-          <Input
+          <DatePicker
             id="to"
             name="to"
-            type="date"
             defaultValue={to ?? ''}
             className="mt-1"
           />
@@ -254,9 +251,7 @@ export default async function AuditPage({
                         {entry.actor.name}
                       </span>
                       <span className="ml-2 text-xs text-gray-500">
-                        {entry.actor.role
-                          .toLowerCase()
-                          .replaceAll('_', ' ')}
+                        {entry.actor.role.toLowerCase().replaceAll('_', ' ')}
                       </span>
                     </TableCell>
                     <TableCell>

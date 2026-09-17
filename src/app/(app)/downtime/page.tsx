@@ -16,6 +16,7 @@ import { listEquipmentsForSelect } from '@/server/maintenance';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input, inputBase } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { DataTable } from '@/components/ui/data-table';
@@ -190,20 +191,18 @@ export default async function DowntimePage({
         </div>
         <div>
           <Label htmlFor="from">From</Label>
-          <Input
+          <DatePicker
             id="from"
             name="from"
-            type="date"
             defaultValue={from ?? ''}
             className="mt-1"
           />
         </div>
         <div>
           <Label htmlFor="to">To</Label>
-          <Input
+          <DatePicker
             id="to"
             name="to"
-            type="date"
             defaultValue={to ?? ''}
             className="mt-1"
           />

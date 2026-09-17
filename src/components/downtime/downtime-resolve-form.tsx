@@ -35,14 +35,20 @@ export function DowntimeResolveForm({ eventId }: { eventId: string }) {
   function onSubmit(values: DowntimeEventResolveValues) {
     setActionError(null);
     startTransition(async () => {
-      const result: DowntimeActionResult = await resolveDowntimeEvent(
-        eventId,
-        values
-      );
-      if (!result.ok) {
-        setActionError(result.error);
-      } else {
-        router.refresh();
+      try {
+        const result: DowntimeActionResult = await resolveDowntimeEvent(
+          eventId,
+          values
+        );
+        if (!result.ok) {
+          setActionError(result.error);
+        } else {
+          router.refresh();
+        }
+      } catch {
+        setActionError(
+          "We couldn't complete this action. Please try again. If the problem continues, refresh the page and try again."
+        );
       }
     });
   }
