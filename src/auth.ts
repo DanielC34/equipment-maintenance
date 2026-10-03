@@ -6,6 +6,10 @@ import type { DefaultUser } from 'next-auth'
 import type { Role } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { loginSchema } from '@/lib/validations'
+import {
+  AUTH_INFRASTRUCTURE_LOG_MESSAGE,
+  AUTH_SERVICE_UNAVAILABLE_CODE,
+} from '@/lib/auth-errors'
 
 declare module 'next-auth' {
   interface Session {
@@ -67,7 +71,8 @@ export const authOptions: NextAuthOptions = {
             role: user.role,
           }
         } catch {
-          return null
+          console.error(AUTH_INFRASTRUCTURE_LOG_MESSAGE)
+          throw new Error(AUTH_SERVICE_UNAVAILABLE_CODE)
         }
       },
     }),
