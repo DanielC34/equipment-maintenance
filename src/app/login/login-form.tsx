@@ -6,6 +6,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { signIn } from 'next-auth/react';
 import { loginSchema, type LoginValues } from '@/lib/validations';
+import {
+  AUTH_SERVICE_UNAVAILABLE_MESSAGE,
+  getCredentialsErrorMessage,
+} from '@/lib/auth-errors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,14 +27,19 @@ export function LoginForm() {
 
   async function onSubmit(values: LoginValues) {
     setAuthError(null);
-    const result = await signIn('credentials', {
-      email: values.email,
-      password: values.password,
-      redirect: false,
-    });
+    try {
+      const result = await signIn('credentials', {
+        email: values.email,
+        password: values.password,
+        redirect: false,
+      });
 
-    if (result?.error) {
-      setAuthError('Invalid email or password. Please try again.');
+      if (result?.error) {
+        setAuthError(getCredentialsErrorMessage(result.error));
+        return;
+      }
+    } catch {
+      setAuthError(AUTH_SERVICE_UNAVAILABLE_MESSAGE);
       return;
     }
 
